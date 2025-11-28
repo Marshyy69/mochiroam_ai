@@ -1,0 +1,12 @@
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.2
+  http: ^0.13.6
+  provider: ^6.0.5
+  flutter_secure_storage: ^8.0.0 # for storing tokens locally if needed
+  firebase_core: ^2.8.0
+  firebase_auth: ^4.4.0
+  cloud_firestore: ^4.5.0
+  firebase_functions: ^4.1.0
+  connectivity_plus: ^4.0.0
