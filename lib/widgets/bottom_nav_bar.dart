@@ -6,7 +6,7 @@ class BottomNavBar extends StatelessWidget {
   const BottomNavBar({super.key, required this.currentIndex});
 
   void _onItemTapped(BuildContext context, int index) {
-    if (index == currentIndex) return; // Prevent reloading same page
+    if (index == currentIndex) return;
 
     switch (index) {
       case 0:
@@ -26,25 +26,27 @@ class BottomNavBar extends StatelessWidget {
     return BottomNavigationBar(
       currentIndex: currentIndex,
       onTap: (index) => _onItemTapped(context, index),
-
       selectedItemColor: Colors.black,
       unselectedItemColor: Colors.black54,
       backgroundColor: const Color(0xFFECC4E8),
       elevation: 10,
 
-      items: const [
+      // ✅ remove `const` here because Image.asset isn't const
+      items: [
         BottomNavigationBarItem(
-          icon: Icon(Icons.home),
+          icon: Image.asset('assets/images/mascot.png', width: 26, height: 26),
           label: 'Home',
         ),
-
         BottomNavigationBarItem(
-          icon: Icon(Icons.map_rounded),
+          icon: Image.asset(
+            'assets/icons/itinerary.png',
+            width: 26,
+            height: 26,
+          ),
           label: 'Itineraries',
         ),
-
         BottomNavigationBarItem(
-          icon: Icon(Icons.person),
+          icon: Image.asset('assets/icons/profile.png', width: 26, height: 26),
           label: 'Account',
         ),
       ],

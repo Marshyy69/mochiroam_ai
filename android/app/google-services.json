@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "242903522636",
+    "project_id": "mochiroam-ai-4cc7c",
+    "storage_bucket": "mochiroam-ai-4cc7c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:242903522636:android:545f9c08eb12989a5f83e9",
+        "android_client_info": {
+          "package_name": "com.example.mochiroam_ai"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBn71cycZzMxt0tHacmAUAd19iH4X8IGqU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

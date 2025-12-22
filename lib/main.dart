@@ -1,10 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+
+import 'firebase_options.dart';
+import 'screens/account_screen.dart';
 import 'screens/chat_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/itinerary_page.dart';
+import 'screens/login_screen.dart';
+import 'screens/preferences_screen.dart';
 
-
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(const MochiRoamApp());
 }
 
@@ -16,22 +23,22 @@ class MochiRoamApp extends StatelessWidget {
     return MaterialApp(
       title: 'MochiRoam AI',
       debugShowCheckedModeBanner: false,
-
       theme: ThemeData(
         primarySwatch: Colors.pink,
         scaffoldBackgroundColor: Colors.white,
         useMaterial3: true,
       ),
 
-      // -------------------- 👇 ADD ROUTES HERE --------------------
-      home: const HomeScreen(),
+      // Start at login -- my route
+      initialRoute: "/login",
       routes: {
+        "/login": (context) => const LoginScreen(),
         "/home": (context) => const HomeScreen(),
         "/itinerary": (context) => const ItineraryPage(),
-        // "/account": (context) => const AccountPage(),
-         '/chat': (context) => const ChatScreen(),
+        "/chat": (context) => const ChatScreen(),
+        "/account": (context) => const AccountScreen(),
+        "/preferences": (context) => const PreferencesScreen(),
       },
-      // --------------------------------------------------------------
     );
   }
 }

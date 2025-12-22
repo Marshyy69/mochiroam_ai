@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/bottom_nav_bar.dart';
 
 class ItineraryPage extends StatelessWidget {
   const ItineraryPage({super.key});
@@ -14,10 +15,7 @@ class ItineraryPage extends StatelessWidget {
         backgroundColor: Colors.white,
         title: Row(
           children: [
-            Image.asset(
-              "assets/icons/dumpling.png", // your icon
-              height: 32,
-            ),
+            Image.asset("assets/icons/dumpling.png", height: 32),
             const SizedBox(width: 10),
             const Text(
               "ITINERARY",
@@ -32,8 +30,11 @@ class ItineraryPage extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.person_outline, color: Colors.grey),
-            onPressed: () {},
-          )
+            onPressed: () {
+              // later: go to account page
+              // Navigator.pushNamed(context, "/account");
+            },
+          ),
         ],
       ),
 
@@ -43,29 +44,23 @@ class ItineraryPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Title Row
             Row(
-              children: [
+              children: const [
                 Icon(Icons.flight_takeoff, size: 22, color: Colors.black),
-                const SizedBox(width: 6),
-                const Text(
+                SizedBox(width: 6),
+                Text(
                   "Your saved itineraries",
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
                 ),
-                const SizedBox(width: 6),
+                SizedBox(width: 6),
                 Icon(Icons.flight_land, size: 22, color: Colors.black),
               ],
             ),
-
             const SizedBox(height: 20),
 
-            // LIST OF STATIC ITINERARIES
             Expanded(
               child: ListView.builder(
-                itemCount: 4,
+                itemCount: 5,
                 itemBuilder: (context, index) {
                   return Container(
                     margin: const EdgeInsets.only(bottom: 16),
@@ -74,9 +69,9 @@ class ItineraryPage extends StatelessWidget {
                       color: Colors.grey[300],
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Row(
+                    child: const Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: const [
+                      children: [
                         Text(
                           "Korea",
                           style: TextStyle(
@@ -101,50 +96,8 @@ class ItineraryPage extends StatelessWidget {
         ),
       ),
 
-      // -------------------- BOTTOM NAV BAR --------------------
-      bottomNavigationBar: Container(
-        height: 70,
-        decoration: const BoxDecoration(
-          color: Color(0xFFE7B3D4), // pink bar
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            // Home Button
-            GestureDetector(
-              onTap: () => Navigator.pushNamed(context, "/home"),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Image.asset("assets/icons/home_dumpling.png", height: 26),
-                  const Text("Home", style: TextStyle(fontSize: 12)),
-                ],
-              ),
-            ),
-
-            // Itinerary Button (current page)
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Image.asset("assets/icons/itinerary_icon.png", height: 26),
-                const Text("Itineraries", style: TextStyle(fontSize: 12)),
-              ],
-            ),
-
-            // Account Button
-            GestureDetector(
-              onTap: () => Navigator.pushNamed(context, "/account"),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Image.asset("assets/icons/profile_black.png", height: 26),
-                  const Text("Account", style: TextStyle(fontSize: 12)),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
+      // ✅ Use the reusable bottom nav (no missing assets!)
+      bottomNavigationBar: const BottomNavBar(currentIndex: 1),
     );
   }
 }

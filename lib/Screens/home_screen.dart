@@ -1,6 +1,4 @@
-// lib/screens/home_screen.dart
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import '../widgets/bottom_nav_bar.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -9,16 +7,21 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // Main body
+      backgroundColor: Colors.white,
+
+      // -------------------- BODY --------------------
       body: SafeArea(
         child: Column(
           children: [
-            // Header row: mascot, HOME, profile icon
+            // -------------------- HEADER --------------------
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16.0,
+                vertical: 12,
+              ),
               child: Row(
                 children: [
-                  // Mascot image (PNG)
+                  // Mascot image
                   Image.asset(
                     'assets/images/mascot.png',
                     width: 36,
@@ -40,10 +43,9 @@ class HomeScreen extends StatelessWidget {
                     ),
                   ),
 
-                  // Profile icon (svg) wrapped in a circle
+                  // Profile icon (PNG, NOT SVG)
                   GestureDetector(
                     onTap: () {
-                      // go to account page via route
                       Navigator.pushReplacementNamed(context, '/account');
                     },
                     child: Container(
@@ -54,12 +56,11 @@ class HomeScreen extends StatelessWidget {
                         shape: BoxShape.circle,
                       ),
                       child: Center(
-                        child: SvgPicture.asset(
-                          'assets/icons/profile.svg',
+                        child: Image.asset(
+                          'assets/icons/profile.png',
                           width: 20,
                           height: 20,
-                          // color tint
-                          colorFilter: const ColorFilter.mode(Colors.black54, BlendMode.srcIn),
+                          fit: BoxFit.contain,
                         ),
                       ),
                     ),
@@ -68,7 +69,7 @@ class HomeScreen extends StatelessWidget {
               ),
             ),
 
-            // Content area
+            // -------------------- CONTENT --------------------
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 26.0),
@@ -76,19 +77,15 @@ class HomeScreen extends StatelessWidget {
                   children: [
                     const Spacer(flex: 3),
 
-                    // Main prompt text
                     const Text(
                       "What's your next adventure?",
-                      style: TextStyle(
-                        fontSize: 18,
-                        color: Colors.black87,
-                      ),
+                      style: TextStyle(fontSize: 18, color: Colors.black87),
                       textAlign: TextAlign.center,
                     ),
 
                     const SizedBox(height: 12),
 
-                    // Suggestion list (static placeholders)
+                    // Suggestions
                     Column(
                       children: const [
                         SuggestionText('Suggestion'),
@@ -100,14 +97,13 @@ class HomeScreen extends StatelessWidget {
 
                     const Spacer(flex: 4),
 
-                    // "Ask anything!" button
+                    // Ask anything button
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                      onPressed: () {
-  Navigator.pushNamed(context, '/chat');
-},
-
+                        onPressed: () {
+                          Navigator.pushNamed(context, '/chat');
+                        },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.grey[300],
                           elevation: 0,
@@ -136,13 +132,13 @@ class HomeScreen extends StatelessWidget {
         ),
       ),
 
-      // Global bottom navigation bar (reusable)
+      // -------------------- BOTTOM NAV --------------------
       bottomNavigationBar: const BottomNavBar(currentIndex: 0),
     );
   }
 }
 
-/// Small helper widget for suggestion text (keeps HomeScreen tidy)
+// -------------------- HELPER WIDGET --------------------
 class SuggestionText extends StatelessWidget {
   final String text;
   const SuggestionText(this.text, {super.key});
@@ -153,10 +149,7 @@ class SuggestionText extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: Text(
         text,
-        style: const TextStyle(
-          color: Colors.redAccent,
-          fontSize: 14,
-        ),
+        style: const TextStyle(color: Colors.redAccent, fontSize: 14),
       ),
     );
   }
