@@ -1,45 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+class SignUpScreen extends StatefulWidget {
+  const SignUpScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  State<SignUpScreen> createState() => _SignUpScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _SignUpScreenState extends State<SignUpScreen> {
   final _email = TextEditingController();
   final _password = TextEditingController();
-   bool _loading = false;
-  bool _rememberMe = false;
+  bool _loading = false;
 
-  // ---------------- LOGIN ----------------
-  Future<void> _login() async {
-    setState(() => _loading = true);
-
-    try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: _email.text.trim(),
-        password: _password.text.trim(),
-      );
-
-      if (!mounted) return;
-      Navigator.pushReplacementNamed(context, "/home");
-    } on FirebaseAuthException catch (e) {
-      String msg = e.message ?? "Login failed";
-      if (e.code == "user-not-found") msg = "No user found for that email.";
-      if (e.code == "wrong-password") msg = "Wrong password.";
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(msg)));
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  // ---------------- REGISTER (RESTORED) ----------------
   Future<void> _register() async {
     setState(() => _loading = true);
 
@@ -52,12 +25,13 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
       Navigator.pushReplacementNamed(context, "/home");
     } on FirebaseAuthException catch (e) {
-      String msg = e.message ?? "Register failed";
+      String msg = e.message ?? "Sign up failed";
+
       if (e.code == "weak-password") {
-        msg = "Password too weak (minimum 6 characters).";
+        msg = "Password must be at least 6 characters.";
       }
       if (e.code == "email-already-in-use") {
-        msg = "Email already in use.";
+        msg = "Email already registered.";
       }
 
       if (!mounted) return;
@@ -66,13 +40,6 @@ class _LoginScreenState extends State<LoginScreen> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
-  }
-
-  @override
-  void dispose() {
-    _email.dispose();
-    _password.dispose();
-    super.dispose();
   }
 
   @override
@@ -92,22 +59,27 @@ class _LoginScreenState extends State<LoginScreen> {
                 height: 120,
               ),
 
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
 
               const Text(
                 "MochiRoam AI",
                 style: TextStyle(
-                  fontSize: 20,
+                  fontSize: 18,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
                 ),
               ),
 
-              const SizedBox(height: 6),
+              const SizedBox(height: 16),
 
               const Text(
-                "Log in to continue.",
-                style: TextStyle(color: Colors.white70),
+                "Start planning your travel\nwith MochiRoam AI!",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
 
               const SizedBox(height: 30),
@@ -138,7 +110,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 decoration: InputDecoration(
                   filled: true,
                   fillColor: Colors.black38,
-                  hintText: "Password",
+                  hintText: "Create a password",
                   hintStyle: const TextStyle(color: Colors.white54),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
@@ -147,29 +119,14 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
 
-              const SizedBox(height: 14),
+              const SizedBox(height: 24),
 
-              // Remember me
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text("Remember me",
-                      style: TextStyle(color: Colors.white70)),
-                  Switch(
-                    value: _rememberMe,
-                    onChanged: (v) => setState(() => _rememberMe = v),
-                  )
-                ],
-              ),
-
-              const SizedBox(height: 20),
-
-              // LOGIN button
+              // CREATE ACCOUNT
               SizedBox(
                 width: double.infinity,
                 height: 48,
                 child: ElevatedButton(
-                  onPressed: _loading ? null : _login,
+                  onPressed: _loading ? null : _register,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.white,
                     foregroundColor: Colors.black,
@@ -177,24 +134,27 @@ class _LoginScreenState extends State<LoginScreen> {
                       borderRadius: BorderRadius.circular(30),
                     ),
                   ),
-                  child: Text(_loading ? "Loading..." : "LOG IN"),
+                  child:
+                      Text(_loading ? "Creating..." : "CREATE ACCOUNT"),
                 ),
               ),
 
               const SizedBox(height: 16),
 
-              // SIGN UP
+              // LOGIN link
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text("Don’t have an account? ",
-                      style: TextStyle(color: Colors.white70)),
-                 GestureDetector(
+                  const Text(
+                    "Already have an account? ",
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                  GestureDetector(
                     onTap: () {
-                      Navigator.pushNamed(context, "/signup");
+                      Navigator.pop(context);
                     },
                     child: const Text(
-                      "SIGN UP",
+                      "LOGIN",
                       style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
