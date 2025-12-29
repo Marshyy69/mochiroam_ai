@@ -39,35 +39,6 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // ---------------- REGISTER (RESTORED) ----------------
-  Future<void> _register() async {
-    setState(() => _loading = true);
-
-    try {
-      await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: _email.text.trim(),
-        password: _password.text.trim(),
-      );
-
-      if (!mounted) return;
-      Navigator.pushReplacementNamed(context, "/home");
-    } on FirebaseAuthException catch (e) {
-      String msg = e.message ?? "Register failed";
-      if (e.code == "weak-password") {
-        msg = "Password too weak (minimum 6 characters).";
-      }
-      if (e.code == "email-already-in-use") {
-        msg = "Email already in use.";
-      }
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(msg)));
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
   @override
   void dispose() {
     _email.dispose();
