@@ -9,11 +9,20 @@ import 'screens/itinerary_page.dart';
 import 'screens/login_screen.dart';
 import 'screens/preferences_screen.dart';
 import 'screens/signup_screen.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // Load env
+  await dotenv.load(fileName: ".env");
+
+  // initialize Firebase
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
   runApp(const MochiRoamApp());
 }
 

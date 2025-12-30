@@ -21,8 +21,8 @@ dependencies:
   flutter_chat_types: ^3.6.2
   uuid: ^4.2.2
 
-  dash_chat_2: ^0.0.19
-
+  dash_chat_2: ^0.0.21
+  flutter_dotenv: ^6.0.0
 
   # HTTP & API
   http: ^1.6.0
