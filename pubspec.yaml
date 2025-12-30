@@ -22,6 +22,7 @@ dependencies:
   uuid: ^4.2.2
 
   dash_chat_2: ^0.0.21
+  flutter_markdown_plus: ^1.0.6
   flutter_dotenv: ^6.0.0
 
   # HTTP & API
