@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:dash_chat_2/dash_chat_2.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:intl/intl.dart';
 
 import '../services/preferences_service.dart';
 import '../services/recommendation_rules.dart';
@@ -14,7 +15,8 @@ class ChatScreen extends StatefulWidget {
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends State<ChatScreen> {
+class _ChatScreenState extends State<ChatScreen>
+    with SingleTickerProviderStateMixin {
   final List<ChatMessage> _messages = [];
 
   final ChatUser _currentUser =
@@ -25,9 +27,16 @@ class _ChatScreenState extends State<ChatScreen> {
 
   bool _isTyping = false;
 
+  late AnimationController _typingController;
+
   @override
   void initState() {
     super.initState();
+
+    _typingController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat();
 
     _messages.insert(
       0,
@@ -40,7 +49,12 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  /// When user sends message
+  @override
+  void dispose() {
+    _typingController.dispose();
+    super.dispose();
+  }
+
   void _handleSendPressed(ChatMessage message) {
     setState(() {
       _messages.insert(0, message);
@@ -50,17 +64,13 @@ class _ChatScreenState extends State<ChatScreen> {
     _getAIResponse(message.text);
   }
 
-  /// Call OpenAI API
   Future<void> _getAIResponse(String userText) async {
     try {
       final prefs = await PreferencesService.fetch();
       final rules = RecommendationRules.build(prefs);
 
       final apiKey = dotenv.env['OPENAI_API_KEY'];
-
-      if (apiKey == null) {
-        throw Exception("OpenAI API key not found in .env");
-      }
+      if (apiKey == null) throw Exception("Missing API key");
 
       final response = await http.post(
         Uri.parse("https://api.openai.com/v1/chat/completions"),
@@ -79,23 +89,16 @@ class _ChatScreenState extends State<ChatScreen> {
             {
               "role": "user",
               "content": """
-User travel preferences:
+Preferences:
 - Pax: ${prefs.pax}
-- Children: ${prefs.hasChildren ? "Yes" : "No"}
-- Elderly: ${prefs.hasElderly ? "Yes" : "No"}
+- Children: ${prefs.hasChildren}
+- Elderly: ${prefs.hasElderly}
 
-Planning rules:
+Rules:
 $rules
 
-User request:
+Request:
 $userText
-
-Generate a detailed travel itinerary with:
-• Daily schedule
-• Activities
-• Food suggestions
-• Transport tips
-• Budget-friendly advice
 """
             }
           ],
@@ -104,33 +107,31 @@ Generate a detailed travel itinerary with:
       );
 
       final data = jsonDecode(response.body);
-
       final aiText =
           data["choices"][0]["message"]["content"];
-
-      final aiMessage = ChatMessage(
-        user: _aiUser,
-        text: aiText,
-        createdAt: DateTime.now(),
-      );
 
       if (!mounted) return;
 
       setState(() {
-        _messages.insert(0, aiMessage);
+        _messages.insert(
+          0,
+          ChatMessage(
+            user: _aiUser,
+            text: aiText,
+            createdAt: DateTime.now(),
+          ),
+        );
         _isTyping = false;
       });
     } catch (e) {
       if (!mounted) return;
-
       setState(() {
         _isTyping = false;
         _messages.insert(
           0,
           ChatMessage(
             user: _aiUser,
-            text:
-                "⚠️ Sorry, I ran into an issue. Please try again.\n\n$e",
+            text: "⚠️ Something went wrong. Please try again.",
             createdAt: DateTime.now(),
           ),
         );
@@ -142,25 +143,118 @@ Generate a detailed travel itinerary with:
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Ask Mochi AI"),
         backgroundColor: Colors.pink.shade300,
+        leadingWidth: 90,
+        leading: Row(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.arrow_back),
+              color: Colors.white,
+              onPressed: () => Navigator.pop(context),
+            ),
+            const CircleAvatar(
+              radius: 16,
+              backgroundImage:
+                  AssetImage('assets/icons/dumpling.png'),
+              backgroundColor: Colors.transparent,
+            ),
+          ],
+        ),
+        title: const Text(
+          "Ask Mochi AI",
+          style: TextStyle(color: Colors.white),
+        ),
       ),
-      body: DashChat(
-        currentUser: _currentUser,
-        onSend: _handleSendPressed,
-        messages: _messages,
-        typingUsers: _isTyping ? [_aiUser] : [],
-        messageOptions: const MessageOptions(
-          showCurrentUserAvatar: true,
-          showOtherUsersAvatar: false,
+      body: Column(
+        children: [
+          Expanded(
+            child: DashChat(
+              currentUser: _currentUser,
+              onSend: _handleSendPressed,
+              messages: _messages,
+            messageOptions: MessageOptions(
+  showCurrentUserAvatar: true,
+  showOtherUsersAvatar: true,
+
+  messageDecorationBuilder:
+      (ChatMessage msg, ChatMessage? prev, ChatMessage? next) {
+    final isUser = msg.user.id == _currentUser.id;
+
+    return BoxDecoration(
+      color: isUser ? Colors.pink.shade200 : Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      boxShadow: isUser
+          ? []
+          : [
+              const BoxShadow(
+                color: Colors.black12,
+                blurRadius: 4,
+              ),
+            ],
+    );
+  },
+
+  messageTimeBuilder: (ChatMessage msg, bool isUser) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Text(
+        DateFormat('HH:mm').format(msg.createdAt),
+        style: const TextStyle(
+          fontSize: 10,
+          color: Colors.grey,
         ),
-        inputOptions: InputOptions(
-          alwaysShowSend: true,
-          inputDecoration: const InputDecoration(
-            hintText: "Ask Mochi about your trip...",
-            border: InputBorder.none,
+      ),
+    );
+  },
+),
+
+              inputOptions: InputOptions(
+                alwaysShowSend: true,
+                inputDecoration: InputDecoration(
+                  hintText: "Ask Mochi about your trip...",
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(20),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 16),
+                ),
+              ),
+            ),
           ),
-        ),
+
+          // 🍡 Mochi typing indicator
+          if (_isTyping)
+            Padding(
+              padding: const EdgeInsets.only(left: 16, bottom: 12),
+              child: Row(
+                children: [
+                  const CircleAvatar(
+                    radius: 14,
+                    backgroundImage:
+                        AssetImage('assets/icons/dumpling.png'),
+                  ),
+                  const SizedBox(width: 8),
+                  AnimatedBuilder(
+                    animation: _typingController,
+                    builder: (_, __) {
+                      final dots =
+                          "." * ((_typingController.value * 3).floor() + 1);
+                      return Text(
+                        "Mochi AI is typing$dots",
+                        style: const TextStyle(
+                          color: Colors.grey,
+                          fontSize: 12,
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }

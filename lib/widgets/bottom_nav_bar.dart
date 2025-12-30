@@ -46,7 +46,7 @@ class BottomNavBar extends StatelessWidget {
           label: 'Itineraries',
         ),
         BottomNavigationBarItem(
-          icon: Image.asset('assets/icons/profile.png', width: 26, height: 26),
+          icon: Image.asset('assets/icons/acc.png', width: 26, height: 26),
           label: 'Account',
         ),
       ],

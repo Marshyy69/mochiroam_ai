@@ -4,64 +4,66 @@ import '../widgets/bottom_nav_bar.dart';
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
+  static const List<Map<String, String>> suggestions = [
+    {
+      "country": "Japan",
+      "emoji": "🇯🇵",
+      "prompt": "Plan a trip to Japan",
+    },
+    {
+      "country": "South Korea",
+      "emoji": "🇰🇷",
+      "prompt": "Plan a trip to South Korea",
+    },
+    {
+      "country": "Thailand",
+      "emoji": "🇹🇭",
+      "prompt": "Plan a trip to Thailand",
+    },
+    {
+      "country": "Australia",
+      "emoji": "🇦🇺",
+      "prompt": "Plan a trip to Australia",
+    },
+  ];
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
 
-      // -------------------- BODY --------------------
       body: SafeArea(
         child: Column(
           children: [
-            // -------------------- HEADER --------------------
+            // ---------------- HEADER ----------------
             Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16.0,
-                vertical: 12,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
                 children: [
-                  // Mascot image
                   Image.asset(
                     'assets/images/mascot.png',
                     width: 36,
                     height: 36,
-                    fit: BoxFit.contain,
                   ),
-
                   const SizedBox(width: 10),
-
-                  // Title
                   const Expanded(
                     child: Text(
                       'HOME',
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.w800,
-                        color: Colors.black87,
                       ),
                     ),
                   ),
-
-                  // Profile icon (PNG, NOT SVG)
                   GestureDetector(
                     onTap: () {
                       Navigator.pushReplacementNamed(context, '/account');
                     },
-                    child: Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[200],
-                        shape: BoxShape.circle,
-                      ),
-                      child: Center(
-                        child: Image.asset(
-                          'assets/icons/profile.png',
-                          width: 20,
-                          height: 20,
-                          fit: BoxFit.contain,
-                        ),
+                    child: CircleAvatar(
+                      backgroundColor: Colors.grey.shade200,
+                      child: Image.asset(
+                        'assets/icons/acc.png',
+                        width: 20,
                       ),
                     ),
                   ),
@@ -69,33 +71,55 @@ class HomeScreen extends StatelessWidget {
               ),
             ),
 
-            // -------------------- CONTENT --------------------
+            // ---------------- CONTENT ----------------
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 26.0),
+                padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Column(
                   children: [
-                    const Spacer(flex: 3),
+                    const SizedBox(height: 24),
 
                     const Text(
-                      "What's your next adventure?",
-                      style: TextStyle(fontSize: 18, color: Colors.black87),
+                      "Where should Mochi take you next? 🍡✈️",
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                      ),
                       textAlign: TextAlign.center,
                     ),
 
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 24),
 
-                    // Suggestions
-                    Column(
-                      children: const [
-                        SuggestionText('Suggestion'),
-                        SuggestionText('Suggestion'),
-                        SuggestionText('Suggestion'),
-                        SuggestionText('Suggestion'),
-                      ],
+                    // 🌍 Country Suggestions
+                    Expanded(
+                      child: GridView.builder(
+                        physics: const BouncingScrollPhysics(),
+                        itemCount: suggestions.length,
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          crossAxisSpacing: 16,
+                          mainAxisSpacing: 16,
+                          childAspectRatio: 1.1,
+                        ),
+                        itemBuilder: (context, index) {
+                          final item = suggestions[index];
+                          return CountryCard(
+                            emoji: item["emoji"]!,
+                            country: item["country"]!,
+                            onTap: () {
+                              Navigator.pushNamed(
+                                context,
+                                '/chat',
+                                arguments: item["prompt"],
+                              );
+                            },
+                          );
+                        },
+                      ),
                     ),
 
-                    const Spacer(flex: 4),
+                    const SizedBox(height: 8),
 
                     // Ask anything button
                     SizedBox(
@@ -105,25 +129,25 @@ class HomeScreen extends StatelessWidget {
                           Navigator.pushNamed(context, '/chat');
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.grey[300],
-                          elevation: 0,
+                          backgroundColor: Colors.pink.shade100,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(24),
                           ),
+                          elevation: 0,
                         ),
                         child: const Text(
-                          'Ask anything!',
+                          'Ask Mochi Anything 💬',
                           style: TextStyle(
                             color: Colors.black87,
-                            fontWeight: FontWeight.w600,
                             fontSize: 16,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ),
                     ),
 
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 16),
                   ],
                 ),
               ),
@@ -132,25 +156,73 @@ class HomeScreen extends StatelessWidget {
         ),
       ),
 
-      // -------------------- BOTTOM NAV --------------------
       bottomNavigationBar: const BottomNavBar(currentIndex: 0),
     );
   }
 }
 
-// -------------------- HELPER WIDGET --------------------
-class SuggestionText extends StatelessWidget {
-  final String text;
-  const SuggestionText(this.text, {super.key});
+class CountryCard extends StatefulWidget {
+  final String emoji;
+  final String country;
+  final VoidCallback onTap;
+
+  const CountryCard({
+    super.key,
+    required this.emoji,
+    required this.country,
+    required this.onTap,
+  });
+
+  @override
+  State<CountryCard> createState() => _CountryCardState();
+}
+
+class _CountryCardState extends State<CountryCard> {
+  bool _hovered = false;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Text(
-        text,
-        style: const TextStyle(color: Colors.redAccent, fontSize: 14),
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedScale(
+          scale: _hovered ? 1.05 : 1.0,
+          duration: const Duration(milliseconds: 200),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.pink.shade50,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black12.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  widget.emoji,
+                  style: const TextStyle(fontSize: 40),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  widget.country,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
 }
+
