@@ -9,6 +9,7 @@ import 'screens/itinerary_page.dart';
 import 'screens/login_screen.dart';
 import 'screens/preferences_screen.dart';
 import 'screens/signup_screen.dart';
+
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 

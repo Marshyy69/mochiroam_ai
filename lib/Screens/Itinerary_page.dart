@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../widgets/bottom_nav_bar.dart';
-// If you create a details page later, import it here:
-// import 'itinerary_details_screen.dart';
+import 'trip_details_screen.dart';
 
 class ItineraryPage extends StatelessWidget {
   const ItineraryPage({super.key});
@@ -102,28 +101,31 @@ class ItineraryPage extends StatelessWidget {
                         // 4. Data List
                         final trips = snapshot.data!.docs;
 
-                        return ListView.builder(
+                       return ListView.builder(
                           itemCount: trips.length,
                           itemBuilder: (context, index) {
                             final doc = trips[index];
                             final data = doc.data() as Map<String, dynamic>;
 
-                            // Safely get data fields
+                            //Get the Document ID so we can edit/delete it later
+                            final tripId = doc.id; 
+
                             final tripName = data['trip_name'] ?? "Unknown Trip";
                             final duration = data['duration'] ?? "? Days";
-                            
-                            // We will use this later for the details page
                             final fullContent = data['full_content'] ?? ""; 
 
                             return GestureDetector(
                               onTap: () {
-                                // TODO: Navigate to Details Page
-                                // Navigator.push(context, MaterialPageRoute(
-                                //   builder: (_) => TripDetailsScreen(
-                                //     title: tripName, 
-                                //     content: fullContent
-                                //   )
-                                // ));
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => TripDetailsScreen(
+                                      tripId: tripId, 
+                                      tripName: tripName,
+                                      content: fullContent,
+                                    ),
+                                  ),
+                                );
                               },
                               child: Container(
                                 margin: const EdgeInsets.only(bottom: 16),
