@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../models/travel_preferences.dart';
 import 'serp_api_service.dart'; 
+import 'package:dash_chat_2/dash_chat_2.dart'; 
 
 class OpenAIService {
   static final String _apiKey = dotenv.env['OPENAI_API_KEY'] ?? '';
@@ -11,6 +12,7 @@ class OpenAIService {
     required String userMessage,
     required TravelPreferences prefs, // ✅ Only this is needed now
     required String rules,
+    List<ChatMessage>? previousMessages,
   }) async {
     if (_apiKey.isEmpty) {
       print("❌ Error: API Key is missing.");
@@ -74,6 +76,8 @@ Structure:
 2. **Bold Place Names**: Use **Bold** for specific places/restaurants.
 3. **Emoji Overload**: Add a relevant emoji to EVERY bullet point (e.g., 🍜 for food, ⛩️ for temples, 📸 for views).
 4. **Tone**: Be enthusiastic and cute!
+5. IMPORTANT: RETURN ONLY RAW JSON. DO NOT use Markdown formatting (no ```json). \n
+6. STRICTLY use double quotes \" for all keys and string values. Never use single quotes.
 
 FORMAT TEMPLATE:
 # 🇯🇵 Trip Title
@@ -105,7 +109,25 @@ If it is just a normal chat, reply with:
 """;
 
     try {
-      print("📨 Sending request to OpenAI...");
+
+      // -------------------------------------------------------
+      // 🧠 BUILD CONTEXT MEMORY
+      // -------------------------------------------------------
+      List<Map<String, String>> apiMessages = [];
+
+      apiMessages.add({"role": "system", "content": systemPrompt});
+
+      if (previousMessages != null) {
+        for (var msg in previousMessages.reversed) {
+          apiMessages.add({
+            "role": msg.user.id == 'user' ? "user" : "assistant", 
+            "content": msg.text,
+          });
+        }
+      }
+
+      // 3. Add Current User Message
+      apiMessages.add({"role": "user", "content": userMessage});
       
       final response = await http.post(
         uri,
@@ -115,10 +137,7 @@ If it is just a normal chat, reply with:
         },
         body: jsonEncode({
           "model": "gpt-4o-mini",
-          "messages": [
-            {"role": "system", "content": systemPrompt},
-            {"role": "user", "content": userMessage}
-          ],
+          "messages": apiMessages,
           "temperature": 0.7,
         }),
       );
@@ -133,16 +152,20 @@ If it is just a normal chat, reply with:
 
       contentString = contentString.replaceAll("```json", "").replaceAll("```", "").trim();
 
-      try {
-        return jsonDecode(contentString) as Map<String, dynamic>;
-      } catch (e) {
-        return {
-          "is_itinerary": false,
-          "content": contentString
-        };
+      int firstBrace = contentString.indexOf('{');
+      int lastBrace = contentString.lastIndexOf('}');
+
+      if (firstBrace != -1 && lastBrace != -1) {
+         String jsonString = contentString.substring(firstBrace, lastBrace + 1);
+         try {
+           return jsonDecode(jsonString) as Map<String, dynamic>;
+         } catch (e) {
+           print("JSON Error: $e");
+         }
       }
+      return {"is_itinerary": false, "content": contentString};
+
     } catch (e) {
-      print("❌ Network Exception: $e");
       return {"content": "⚠️ Network error: $e"};
     }
   }
