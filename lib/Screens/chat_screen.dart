@@ -41,8 +41,20 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  Future<void> _saveTripToFirestore(Map<String, dynamic> tripData, String fullContent) async {
+Future<void> _saveTripToFirestore(Map<String, dynamic> tripData, String fullContent) async {
     try {
+      // 1. Get the new data from the AI response (with fallbacks)
+      String country = tripData['country'] ?? "Uncategorized";
+      String continent = tripData['continent'] ?? "Other";
+      List<dynamic> tags = tripData['tags'] ?? [];
+
+      // 2. Add our own manual tags based on preferences
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(_currentUser.id).get();
+      if (userDoc.exists && (userDoc.data()?['is_halal'] ?? false)) {
+        if (!tags.contains('Halal')) tags.add('Halal');
+      }
+
+      // 3. Save to Firestore
       await FirebaseFirestore.instance
           .collection('users')
           .doc(_currentUser.id)
@@ -50,6 +62,9 @@ class _ChatScreenState extends State<ChatScreen> {
           .add({
         'trip_name': tripData['trip_name'] ?? "New Trip",
         'duration': tripData['duration'] ?? "Unknown",
+        'country': country,       // ✅ Saved for filtering
+        'continent': continent,   // ✅ Saved for grouping
+        'tags': tags,            // ✅ Saved for filtering
         'full_content': fullContent,
         'created_at': FieldValue.serverTimestamp(),
       });

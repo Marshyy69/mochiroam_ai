@@ -68,6 +68,9 @@ Structure:
   "is_itinerary": true,
   "trip_name": "Trip Title",
   "duration": "e.g. 5 Days",
+  "country": "Main Country Name (e.g. Japan)",
+  "continent": "Continent Name (e.g. Asia)",   
+  "tags": ["Family", "Halal", "Nature"],
   "content": "..."
 }
 
