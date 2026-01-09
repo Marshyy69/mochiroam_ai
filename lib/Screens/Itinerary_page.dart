@@ -336,15 +336,29 @@ class _ItineraryPageState extends State<ItineraryPage> {
     final duration = data['duration'] ?? "? Days";
     final tags = List<String>.from(data['tags'] ?? []);
 
-    return GestureDetector(
+  return GestureDetector(
       onTap: () {
+        // ✅ 1. Get the JSON data safely
+        Map<String, dynamic> tripData = {};
+        
+        if (data['trip_data'] != null) {
+          tripData = data['trip_data'] as Map<String, dynamic>;
+        } else {
+           // Fallback for old trips (Prevents crash)
+           tripData = {
+             "days": [], 
+             "trip_name": tripName,
+             "summary": data['full_content'] ?? "Legacy Trip"
+           };
+        }
+
         Navigator.push(
           context,
           MaterialPageRoute(
             builder: (_) => TripDetailsScreen(
               tripId: doc.id,
               tripName: tripName,
-              content: data['full_content'] ?? "",
+              tripData: tripData, // ✅ Passing the Map
             ),
           ),
         );

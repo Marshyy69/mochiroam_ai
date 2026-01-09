@@ -10,24 +10,20 @@ class OpenAIService {
 
   static Future<Map<String, dynamic>> sendMessage({
     required String userMessage,
-    required TravelPreferences prefs, // ✅ Only this is needed now
+    required TravelPreferences prefs, 
     required String rules,
     List<ChatMessage>? previousMessages,
   }) async {
     if (_apiKey.isEmpty) {
-      print("❌ Error: API Key is missing.");
       return {"content": "⚠️ OpenAI API key not configured."};
     }
 
     final uri = Uri.parse("https://api.openai.com/v1/chat/completions");
 
-    // ---------------------------------------------------------
     // 1. HALAL & SERPAPI LOGIC
-    // ---------------------------------------------------------
     String dietaryRule = "";
     String realData = "";
 
-    // ✅ CHECK INSIDE PREFS
     if (prefs.isHalal) {
       if (userMessage.toLowerCase().contains("trip") || 
           userMessage.toLowerCase().contains("plan") ||
@@ -38,86 +34,71 @@ class OpenAIService {
       }
 
       dietaryRule = """
-CRITICAL DIETARY REQUIREMENT:
-The user has a STRICT HALAL preference.
-- You MUST ONLY suggest restaurants that are Halal-certified or known to be Muslim-friendly.
-- I have fetched REAL DATA for you to use below.
-- PRIORITIZE using the following verified places in your itinerary if they match the location:
-$realData
-- If the suggested places don't fit the schedule, find other known Halal options but clearly label them.
-""";
+      CRITICAL DIETARY REQUIREMENT:
+      The user has a STRICT HALAL preference.
+      - You MUST ONLY suggest restaurants that are Halal-certified or known to be Muslim-friendly.
+      - I have fetched REAL DATA for you to use below.
+      - PRIORITIZE using these specific verified places for Lunch/Dinner:
+      $realData
+      - If these don't fit the location, you MUST find a specific Halal restaurant name. Do not just say "Halal Restaurant".
+      """;
     }
 
- // ---------------------------------------------------------
-    // 2. SYSTEM PROMPT (Updated for Bolding)
-    // ---------------------------------------------------------
+    // 2. SYSTEM PROMPT
     final systemPrompt = """
-You are Mochi AI, a friendly travel assistant.
-User Preferences:
-- Pax: ${prefs.pax}
-- Children: ${prefs.hasChildren}
-- Elderly: ${prefs.hasElderly}
-- Rules: $rules
+    You are Mochi AI, a travel assistant.
+    User Preferences:
+    - Pax: ${prefs.pax} (${prefs.hasChildren ? "${prefs.childrenCount} kids" : "No kids"})
+    - Elderly: ${prefs.hasElderly}
+    - Vibe: ${prefs.tripVibe.join(", ")}
+    - Budget: ${prefs.budget}
+    - Stay: ${prefs.accommodation}
+    - Rules: $rules
 
-$dietaryRule
+    $dietaryRule
 
-IMPORTANT:
-If the user asks for a trip plan, you MUST reply with valid JSON format only.
-Structure:
-{
-  "is_itinerary": true,
-  "trip_name": "Trip Title",
-  "duration": "e.g. 5 Days",
-  "country": "Main Country Name (e.g. Japan)",
-  "continent": "Continent Name (e.g. Asia)",   
-  "tags": ["Family", "Halal", "Nature"],
-  "content": "..."
-}
+    IMPORTANT:
+    If the user asks for a trip plan, you MUST reply with valid JSON format only.
+    
+    JSON Structure:
+    {
+      "is_itinerary": true,
+      "trip_name": "Short Trip Title",
+      "duration": "e.g. 3 Days",
+      "country": "Country Name",
+      "continent": "Continent Name",
+      "tags": ["Family", "Nature", "Halal"],
+      "summary": "A short 2-sentence summary of the trip enthusiasm.",
+      "days": [
+        {
+          "day": 1,
+          "theme": "City Highlights",
+          "activities": [
+            {"time": "09:00 AM", "title": "Start at X", "desc": "Description...", "geo": "Place Name"},
+            {"time": "10:30 AM", "title": "Walk to Y", "desc": "Nearby spot...", "geo": "Place Name"},
+            {"time": "Lunch", "title": "Lunch at [Specific Name]", "desc": "Must be specific!", "geo": "Restaurant Name"},
+            {"time": "02:00 PM", "title": "Visit Z", "desc": "Description...", "geo": "Place Name"},
+            {"time": "04:00 PM", "title": "Coffee at A", "desc": "Description...", "geo": "Place Name"},
+            {"time": "Dinner", "title": "Dinner at [Specific Name]", "desc": "Must be specific!", "geo": "Restaurant Name"}
+          ]
+        }
+      ]
+    }
 
-🎨 FORMATTING & STYLE RULES:
-1. **Bold Time Headers**: Always add an emoji (e.g., **Morning ☀️**, **Evening 🌙**).
-2. **Bold Place Names**: Use **Bold** for specific places/restaurants.
-3. **Emoji Overload**: Add a relevant emoji to EVERY bullet point (e.g., 🍜 for food, ⛩️ for temples, 📸 for views).
-4. **Tone**: Be enthusiastic and cute!
-5. IMPORTANT: RETURN ONLY RAW JSON. DO NOT use Markdown formatting (no ```json). \n
-6. STRICTLY use double quotes \" for all keys and string values. Never use single quotes.
-
-FORMAT TEMPLATE:
-# 🇯🇵 Trip Title
-(Short 1-sentence intro)
-
-**Day 1 - Title of Day**
-
-**Morning**
-• Visit **Place Name 1** - Short description.
-• Walk around **Place Name 2**.
-• Brunch at **Restaurant Name** (Halal/Vegan if requested).
-
-**Afternoon**
-• Explore **Landmark Name**.
-• Activity at **Place Name**.
-
-**Evening**
-• Dinner at **Restaurant Name**.
-• Night view at **Place Name**.
-
-**Day 2 - Title of Day**
-... (repeat)
-
-If it is just a normal chat, reply with:
-{
-  "is_itinerary": false,
-  "content": "Your friendly response..."
-}
-""";
+    STRICT RULES:
+    1. RETURN ONLY RAW JSON. No Markdown.
+    2. **FULL DAY RULE**: You MUST schedule activities from **9:00 AM** until at least **9:00 PM**. Do not stop at 4:00 PM.
+    3. **DENSITY RULE**: 
+       - Morning: 2-3 activities.
+       - Afternoon: 2-3 activities.
+       - Evening: Dinner + 1 Night Activity (e.g., Night view, Walk, or Market).
+    4. **MEAL RULE**: Include specific 'Lunch' and 'Dinner' with real restaurant names.
+    5. **TIME LABELS**: Use specific times (e.g., "09:00 AM", "07:00 PM").
+    6. Use double quotes for all keys.
+    """;
 
     try {
-
-      // -------------------------------------------------------
-      // 🧠 BUILD CONTEXT MEMORY
-      // -------------------------------------------------------
       List<Map<String, String>> apiMessages = [];
-
       apiMessages.add({"role": "system", "content": systemPrompt});
 
       if (previousMessages != null) {
@@ -129,7 +110,6 @@ If it is just a normal chat, reply with:
         }
       }
 
-      // 3. Add Current User Message
       apiMessages.add({"role": "user", "content": userMessage});
       
       final response = await http.post(
@@ -139,14 +119,13 @@ If it is just a normal chat, reply with:
           "Authorization": "Bearer $_apiKey",
         },
         body: jsonEncode({
-          "model": "gpt-4o-mini",
+          "model": "gpt-4o-mini", 
           "messages": apiMessages,
           "temperature": 0.7,
         }),
       );
 
       if (response.statusCode != 200) {
-        print("❌ API Error: ${response.body}");
         return {"content": "⚠️ OpenAI error (${response.statusCode})."};
       }
 
@@ -163,7 +142,8 @@ If it is just a normal chat, reply with:
          try {
            return jsonDecode(jsonString) as Map<String, dynamic>;
          } catch (e) {
-           print("JSON Error: $e");
+           print("JSON Parsing Error: $e");
+           return {"content": "I made a mistake reading the map! 🗺️ Try again?"};
          }
       }
       return {"is_itinerary": false, "content": contentString};

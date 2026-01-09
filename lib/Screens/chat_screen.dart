@@ -23,7 +23,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final ChatUser _aiUser = ChatUser(
     id: 'mochi_ai',
     firstName: 'Mochi AI',
-    profileImage: 'assets/icons/dumpling.png', 
+    profileImage: 'assets/icons/dumpling.png',
   );
 
   List<ChatMessage> _messages = [];
@@ -41,20 +41,20 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-Future<void> _saveTripToFirestore(Map<String, dynamic> tripData, String fullContent) async {
+  Future<void> _saveTripToFirestore(Map<String, dynamic> tripData) async {
     try {
-      // 1. Get the new data from the AI response (with fallbacks)
+      // 1. Extract Metadata for Filtering
       String country = tripData['country'] ?? "Uncategorized";
       String continent = tripData['continent'] ?? "Other";
       List<dynamic> tags = tripData['tags'] ?? [];
 
-      // 2. Add our own manual tags based on preferences
+      // 2. Add 'Halal' tag if user is Muslim (Auto-tagging)
       final userDoc = await FirebaseFirestore.instance.collection('users').doc(_currentUser.id).get();
       if (userDoc.exists && (userDoc.data()?['is_halal'] ?? false)) {
         if (!tags.contains('Halal')) tags.add('Halal');
       }
 
-      // 3. Save to Firestore
+      // 3. Save the FULL JSON object to 'trip_data'
       await FirebaseFirestore.instance
           .collection('users')
           .doc(_currentUser.id)
@@ -62,10 +62,11 @@ Future<void> _saveTripToFirestore(Map<String, dynamic> tripData, String fullCont
           .add({
         'trip_name': tripData['trip_name'] ?? "New Trip",
         'duration': tripData['duration'] ?? "Unknown",
-        'country': country,       // ✅ Saved for filtering
-        'continent': continent,   // ✅ Saved for grouping
-        'tags': tags,            // ✅ Saved for filtering
-        'full_content': fullContent,
+        'country': country,
+        'continent': continent,
+        'tags': tags,
+        // ✅ CRITICAL: We save the structured JSON here
+        'trip_data': tripData, 
         'created_at': FieldValue.serverTimestamp(),
       });
 
@@ -79,25 +80,20 @@ Future<void> _saveTripToFirestore(Map<String, dynamic> tripData, String fullCont
     }
   }
 
-Future<void> _handleMessage(ChatMessage message) async {
-    // 1. Show User Message
+ Future<void> _handleMessage(ChatMessage message) async {
     setState(() {
       _messages.insert(0, message);
-      _typingUsers.add(_aiUser); // Start Mochi typing...
+      _typingUsers.add(_aiUser);
     });
 
     try {
-      // 2. Fetch Data & Preferences
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(_currentUser.id)
-          .get();
-          
+      // 1. Fetch User Preferences
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(_currentUser.id).get();
       final data = userDoc.data() ?? {};
       
-     final dynamicPrefs = TravelPreferences(
+      final dynamicPrefs = TravelPreferences(
         pax: data['pax'] ?? 2,
-        hasChildren: data['hasChildren'] ?? false, // Note: check exact key spelling in Firebase
+        hasChildren: data['hasChildren'] ?? false,
         childrenCount: data['childrenCount'] ?? 0,
         childrenAgeRange: data['childrenAgeRange'] ?? "",
         hasElderly: data['hasElderly'] ?? false,
@@ -107,67 +103,88 @@ Future<void> _handleMessage(ChatMessage message) async {
         accommodation: data['accommodation'] ?? "Hotel",
       );
 
-      // 3. Call OpenAI
+      // 2. Call OpenAI
       final response = await OpenAIService.sendMessage(
         userMessage: message.text,
-        prefs: dynamicPrefs,                
-        rules: dynamicPrefs.toPromptString(), 
+        prefs: dynamicPrefs,
+        rules: dynamicPrefs.toPromptString(),
         previousMessages: _messages.length > 1 ? _messages.sublist(1) : [],
       );
 
-      String aiText = response['content'];
       bool isItinerary = response['is_itinerary'] ?? false;
-      String tripName = response['trip_name'] ?? "";
+      String displayText = "";
 
-      // 4. Cleanup & Safety
+      // ✅ 3. Construct the Chat Bubble Text (UPDATED)
       if (isItinerary) {
-        aiText = aiText.replaceAll("• ", "\n\n• ").replaceAll(" - ", "\n- ");
-      }
-      if (!isItinerary && aiText.contains('{') && aiText.contains('}')) {
-        aiText = "Oops! I got a bit confused writing that plan. 😵‍💫\nCould you ask me again?";
+        String tripName = response['trip_name'] ?? "Trip";
+        String summary = response['summary'] ?? "";
+        List<dynamic> days = response['days'] ?? [];
+
+        // Build a readable text version for the Chat Bubble
+        StringBuffer buffer = StringBuffer();
+        buffer.writeln("## 🗺️ $tripName");
+        if (summary.isNotEmpty) buffer.writeln("\n_${summary}_\n");
+
+        for (var day in days) {
+          buffer.writeln("\n**Day ${day['day']}: ${day['theme']}**");
+          for (var activity in day['activities']) {
+            String time = activity['time'] ?? "";
+            String title = activity['title'] ?? "";
+            String desc = activity['desc'] ?? "";
+            
+            // Add emoji based on time
+            String emoji = "📍";
+            if (time.contains("Morning")) emoji = "☀️";
+            if (time.contains("Afternoon")) emoji = "🌤️";
+            if (time.contains("Evening") || time.contains("Night")) emoji = "🌙";
+            
+            buffer.writeln("- $emoji **$time**: $title");
+            // Optional: Show description in chat too if you want detailed text
+            // buffer.writeln("  _$desc_"); 
+          }
+        }
+        
+        displayText = buffer.toString();
+        
+      } else {
+        // Normal chat response
+        displayText = response['content'] ?? "I'm listening...";
       }
 
-      // 5. Remove initial typing indicator
       setState(() {
         _typingUsers.remove(_aiUser);
       });
 
-      // ---------------------------------------------------------
-      // 🌊 ANIMATION LOGIC
-      // ---------------------------------------------------------
-
-      // PART A: The Photo (First Bubble)
-      if (isItinerary && tripName.isNotEmpty) {
-        setState(() => _typingUsers.add(_aiUser)); // Typing...
-        
+      // 4. Photo Animation
+      if (isItinerary) {
+        setState(() => _typingUsers.add(_aiUser));
+        String tripName = response['trip_name'] ?? "";
         String imageMarkdown = await PhotoService.getCityImage(tripName);
+        await Future.delayed(const Duration(milliseconds: 500));
         
-        // Wait a tiny bit for effect
-        await Future.delayed(const Duration(milliseconds: 500)); 
-
         if (mounted) {
-          setState(() {
-            _typingUsers.remove(_aiUser); 
-            _messages.insert(0, ChatMessage(
-              text: imageMarkdown, 
-              user: _aiUser,
-              createdAt: DateTime.now(),
-            ));
+           setState(() {
+            _typingUsers.remove(_aiUser);
+            if (imageMarkdown.isNotEmpty) {
+              _messages.insert(0, ChatMessage(
+                text: imageMarkdown,
+                user: _aiUser,
+                createdAt: DateTime.now(),
+              ));
+            }
           });
         }
       }
 
-      // PART B: The Text Plan (Second Bubble)
-      // We simulate typing time BEFORE inserting the message
-      setState(() => _typingUsers.add(_aiUser)); 
-      await Future.delayed(const Duration(milliseconds: 1500)); // Wait 1.5s
-      
-      // Create the ONE and ONLY text message
+      // 5. Insert the AI Message
+      setState(() => _typingUsers.add(_aiUser));
+      await Future.delayed(const Duration(milliseconds: 1000));
+
       final botMessage = ChatMessage(
-        text: aiText,
+        text: displayText,
         user: _aiUser,
         createdAt: DateTime.now(),
-        // ✅ Attach the Trip Data for the Save Button
+        // Store the JSON so the Save Button still works!
         customProperties: isItinerary ? {
           'is_itinerary': true,
           'trip_data': response, 
@@ -176,8 +193,8 @@ Future<void> _handleMessage(ChatMessage message) async {
 
       if (mounted) {
         setState(() {
-          _typingUsers.remove(_aiUser); // Stop typing
-          _messages.insert(0, botMessage); // ✅ INSERT ONCE
+          _typingUsers.remove(_aiUser);
+          _messages.insert(0, botMessage);
         });
       }
 
@@ -201,7 +218,6 @@ Future<void> _handleMessage(ChatMessage message) async {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        // title: const Text("Chat with Mochi", style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.pink.shade300,
         title: const Text("Ask Mochi AI", style: TextStyle(color: Colors.white)),
         leading: IconButton(
@@ -242,43 +258,36 @@ Future<void> _handleMessage(ChatMessage message) async {
             );
           },
           messageTextBuilder: (message, previous, next) {
-            // 1. If it's the User, just show plain text
             if (message.user.id == _currentUser.id) {
               return Padding(
                 padding: const EdgeInsets.all(4),
-                child: Text(
-                  message.text,
-                  style: const TextStyle(color: Colors.black87),
-                ),
+                child: Text(message.text, style: const TextStyle(color: Colors.black87)),
               );
             }
 
-            // 2. If it's Mochi (AI), check for trip data
             final bool isPlan = message.customProperties?['is_itinerary'] == true;
             final tripData = message.customProperties?['trip_data'];
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // A. The Markdown Text
                 Padding(
                   padding: const EdgeInsets.all(4),
                   child: MarkdownBody(
                     data: message.text,
                     styleSheet: MarkdownStyleSheet(
                       p: const TextStyle(fontSize: 16, color: Colors.black87),
+                      h2: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.pink.shade600),
                       strong: TextStyle(fontWeight: FontWeight.w800, color: Colors.pink.shade600),
-                      listBullet: TextStyle(color: Colors.pink.shade400),
                     ),
                   ),
                 ),
-
-                // B. The Save Button 
                 if (isPlan && tripData != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 10, bottom: 5),
                     child: ElevatedButton.icon(
-                      onPressed: () => _saveTripToFirestore(tripData, message.text),
+                      // ✅ Pass the Map, not string
+                      onPressed: () => _saveTripToFirestore(tripData),
                       icon: const Icon(Icons.bookmark_add, color: Colors.white, size: 18),
                       label: const Text("Save Itinerary", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                       style: ElevatedButton.styleFrom(
