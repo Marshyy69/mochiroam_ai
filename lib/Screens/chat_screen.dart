@@ -92,13 +92,19 @@ Future<void> _handleMessage(ChatMessage message) async {
           .collection('users')
           .doc(_currentUser.id)
           .get();
+          
       final data = userDoc.data() ?? {};
       
-      final dynamicPrefs = TravelPreferences(
+     final dynamicPrefs = TravelPreferences(
         pax: data['pax'] ?? 2,
-        hasChildren: data['has_children'] ?? false,
-        hasElderly: data['has_elderly'] ?? false,
+        hasChildren: data['hasChildren'] ?? false, // Note: check exact key spelling in Firebase
+        childrenCount: data['childrenCount'] ?? 0,
+        childrenAgeRange: data['childrenAgeRange'] ?? "",
+        hasElderly: data['hasElderly'] ?? false,
         isHalal: data['is_halal'] ?? false,
+        tripVibe: List<String>.from(data['tripVibe'] ?? ["Balanced"]), 
+        budget: data['budget'] ?? "Standard", 
+        accommodation: data['accommodation'] ?? "Hotel",
       );
 
       // 3. Call OpenAI
