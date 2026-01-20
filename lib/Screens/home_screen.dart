@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // 1. Add Firebase Auth
+import 'package:cloud_firestore/cloud_firestore.dart'; // 2. Add Firestore
 import '../widgets/bottom_nav_bar.dart';
+import 'profile_screen.dart'; 
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -29,49 +32,86 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser; // Get current user
+
     return Scaffold(
       backgroundColor: Colors.white,
+      
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Colors.white,
+        automaticallyImplyLeading: false, 
+        title: Row(
+          children: [
+            Image.asset(
+              'assets/images/mascot.png',
+              width: 36,
+              height: 36,
+            ),
+            const SizedBox(width: 10),
+            const Text(
+              'HOME',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+                color: Colors.black, 
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          // 👤 LIVE AVATAR BUTTON (Top Right)
+          Padding(
+            padding: const EdgeInsets.only(right: 16.0),
+            child: InkWell(
+              onTap: () {
+                Navigator.push(
+                  context, 
+                  MaterialPageRoute(builder: (_) => const ProfileScreen())
+                );
+              },
+              borderRadius: BorderRadius.circular(50),
+              // 🔥 STREAM BUILDER: Listens to the Avatar changes
+              child: StreamBuilder<DocumentSnapshot>(
+                stream: user != null 
+                    ? FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots() 
+                    : null,
+                builder: (context, snapshot) {
+                  // Default avatar if loading or no data
+                  String avatar = "🍡"; 
+                  
+                  if (snapshot.hasData && snapshot.data != null && snapshot.data!.exists) {
+                    final data = snapshot.data!.data() as Map<String, dynamic>;
+                    if (data.containsKey('avatar')) {
+                      avatar = data['avatar'];
+                    }
+                  }
+
+                  return Container(
+                    width: 40, 
+                    height: 40,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: Colors.pink.shade50,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.pink.shade100, width: 1.5),
+                    ),
+                    // Show the Emoji Avatar instead of Icon
+                    child: Text(
+                      avatar, 
+                      style: const TextStyle(fontSize: 22), 
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
 
       body: SafeArea(
         child: Column(
           children: [
-            // ---------------- HEADER ----------------
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
-                children: [
-                  Image.asset(
-                    'assets/images/mascot.png',
-                    width: 36,
-                    height: 36,
-                  ),
-                  const SizedBox(width: 10),
-                  const Expanded(
-                    child: Text(
-                      'HOME',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.pushReplacementNamed(context, '/account');
-                    },
-                    child: CircleAvatar(
-                      backgroundColor: Colors.grey.shade200,
-                      child: Image.asset(
-                        'assets/icons/acc.png',
-                        width: 20,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // ---------------- CONTENT ----------------
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -225,4 +265,3 @@ class _CountryCardState extends State<CountryCard> {
     );
   }
 }
-

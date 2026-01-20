@@ -11,14 +11,24 @@ class ItineraryPage extends StatefulWidget {
   State<ItineraryPage> createState() => _ItineraryPageState();
 }
 
-class _ItineraryPageState extends State<ItineraryPage> {
+class _ItineraryPageState extends State<ItineraryPage> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
   // ---------------- STATE: Active Filters ----------------
   String _selectedRegion = "All"; // All, Asia, Europe, etc.
   String _selectedTripType = "All"; // All, Family, Couple, Friends
   bool _filterHalal = false;
-  String _durationFilter = "Any"; // Any, Short (< 5), Long (5+)
+  
+  // Unused in your code but kept just in case
+  String _durationFilter = "Any"; 
 
-  // ---------------- UI: The Filter Modal ----------------
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  // ---------------- UI: The Filter Modal (YOUR EXACT CODE) ----------------
   void _showFilterModal() {
     showModalBottomSheet(
       context: context,
@@ -27,7 +37,6 @@ class _ItineraryPageState extends State<ItineraryPage> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(25.0)),
       ),
       builder: (context) {
-        // Local state for the modal (so switches update instantly visually)
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setModalState) {
             return Padding(
@@ -69,6 +78,7 @@ class _ItineraryPageState extends State<ItineraryPage> {
                   const SizedBox(height: 16),
 
                   // 2. Trip Type (Tags)
+                  
                   const Text("Trip Vibe", style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey)),
                   const SizedBox(height: 8),
                   Wrap(
@@ -110,7 +120,6 @@ class _ItineraryPageState extends State<ItineraryPage> {
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                       ),
                       onPressed: () {
-                        // Save state to main widget and close
                         setState(() {}); 
                         Navigator.pop(context);
                       },
@@ -133,7 +142,7 @@ class _ItineraryPageState extends State<ItineraryPage> {
     return Scaffold(
       backgroundColor: Colors.white,
 
-      // -------------------- APP BAR --------------------
+      // -------------------- APP BAR (Updated with Tabs) --------------------
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.white,
@@ -151,161 +160,26 @@ class _ItineraryPageState extends State<ItineraryPage> {
             ),
           ],
         ),
+        bottom: TabBar(
+          controller: _tabController,
+          labelColor: Colors.pink,
+          unselectedLabelColor: Colors.grey,
+          indicatorColor: Colors.pink,
+          tabs: const [
+            Tab(text: "Upcoming ✈️"),
+            Tab(text: "Memories 📸"),
+          ],
+        ),
       ),
 
       // -------------------- BODY --------------------
       body: user == null
           ? const Center(child: Text("Please log in to view itineraries"))
-          : Column(
+          : TabBarView(
+              controller: _tabController,
               children: [
-                // 🔥 HEADER WITH FILTER BUTTON
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: const [
-                          Icon(Icons.flight_takeoff, size: 22, color: Colors.black),
-                          SizedBox(width: 8),
-                          Text(
-                            "Your saved itineraries",
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                          ),
-                        ],
-                      ),
-                      
-                      // FILTER BUTTON
-                      InkWell(
-                        onTap: _showFilterModal,
-                        borderRadius: BorderRadius.circular(20),
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.pink.shade50,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.pink.shade100),
-                          ),
-                          child: const Icon(Icons.tune, color: Colors.pink, size: 20),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // 🔥 LIST WITH LOGIC
-                Expanded(
-                  child: StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('users')
-                        .doc(user.uid)
-                        .collection('itineraries')
-                        .orderBy('created_at', descending: true)
-                        .snapshots(),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                        return _buildEmptyState();
-                      }
-
-                      var docs = snapshot.data!.docs;
-
-                      // ---------------- APPLY FILTERS ----------------
-                      var filteredDocs = docs.where((doc) {
-                        final data = doc.data() as Map<String, dynamic>;
-                        
-                        String continent = data['continent'] ?? "Uncategorized";
-                        List<dynamic> tags = data['tags'] ?? [];
-                        
-                        // 1. Region Filter
-                        if (_selectedRegion != "All" && continent != _selectedRegion) return false;
-
-                        // 2. Trip Type Filter
-                        if (_selectedTripType != "All") {
-                           // Ensure tag list contains the specific string
-                           if (!tags.contains(_selectedTripType)) return false; 
-                        }
-
-                        // 3. Halal Filter
-                        if (_filterHalal && !tags.contains("Halal")) return false;
-
-                        return true;
-                      }).toList();
-                      // ----------------------------------------------
-
-                      if (filteredDocs.isEmpty) {
-                        return Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.filter_list_off, size: 48, color: Colors.grey.shade300),
-                            const SizedBox(height: 10),
-                            const Text("No trips match your filters!", style: TextStyle(color: Colors.grey)),
-                            TextButton(
-                                onPressed: () => setState(() {
-                                  _selectedRegion = "All";
-                                  _selectedTripType = "All";
-                                  _filterHalal = false;
-                                }), 
-                                child: const Text("Clear Filters")
-                            )
-                          ],
-                        );
-                      }
-
-                      // ---------------- GROUPING LOGIC ----------------
-                      // Group filtered results by Country
-                      Map<String, List<QueryDocumentSnapshot>> groupedTrips = {};
-                      for (var doc in filteredDocs) {
-                        final data = doc.data() as Map<String, dynamic>;
-                        String country = data['country'] ?? "Other Trips";
-                        if (!groupedTrips.containsKey(country)) {
-                          groupedTrips[country] = [];
-                        }
-                        groupedTrips[country]!.add(doc);
-                      }
-
-                      return ListView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        itemCount: groupedTrips.length,
-                        itemBuilder: (context, index) {
-                          String countryName = groupedTrips.keys.elementAt(index);
-                          List<QueryDocumentSnapshot> trips = groupedTrips[countryName]!;
-
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Country Header
-                              Padding(
-                                padding: const EdgeInsets.only(top: 10, bottom: 8),
-                                child: Row(
-                                  children: [
-                                    const Icon(Icons.location_on, size: 16, color: Colors.pinkAccent),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      countryName.toUpperCase(),
-                                      style: TextStyle(
-                                        color: Colors.pink.shade300,
-                                        fontWeight: FontWeight.bold,
-                                        letterSpacing: 1.2,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                    const Expanded(child: Divider(indent: 10)),
-                                  ],
-                                ),
-                              ),
-                              
-                              // Cards
-                              ...trips.map((doc) => _buildTripCard(context, doc)),
-                            ],
-                          );
-                        },
-                      );
-                    },
-                  ),
-                ),
+                _buildTripList(user.uid, isCompleted: false), // Upcoming
+                _buildTripList(user.uid, isCompleted: true),  // Memories
               ],
             ),
 
@@ -313,38 +187,199 @@ class _ItineraryPageState extends State<ItineraryPage> {
     );
   }
 
-  Widget _buildEmptyState() {
+  // 🔥 REUSABLE LIST BUILDER (Keeps your exact style)
+  Widget _buildTripList(String uid, {required bool isCompleted}) {
+    return Column(
+      children: [
+        // 🔥 HEADER WITH FILTER BUTTON (Your Original Code)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(isCompleted ? Icons.photo_library : Icons.flight_takeoff, size: 22, color: Colors.black),
+                  const SizedBox(width: 8),
+                  Text(
+                    isCompleted ? "Your past trips" : "Your saved itineraries",
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                  ),
+                ],
+              ),
+              
+              // FILTER BUTTON
+              InkWell(
+                onTap: _showFilterModal,
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.pink.shade50,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.pink.shade100),
+                  ),
+                  child: const Icon(Icons.tune, color: Colors.pink, size: 20),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // 🔥 LIST WITH LOGIC
+        Expanded(
+          child: StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('users')
+                .doc(uid)
+                .collection('itineraries')
+                .orderBy('created_at', descending: true)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                return _buildEmptyState(isCompleted);
+              }
+
+              var docs = snapshot.data!.docs;
+
+              // ---------------- APPLY FILTERS ----------------
+              var filteredDocs = docs.where((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                
+                // 1. Status Filter (New!)
+                String status = data['status'] ?? "upcoming";
+                if (isCompleted && status != 'completed') return false;
+                if (!isCompleted && status == 'completed') return false;
+
+                String continent = data['continent'] ?? "Uncategorized";
+                List<dynamic> tags = data['tags'] ?? [];
+                
+                // 2. Region Filter
+                if (_selectedRegion != "All" && continent != _selectedRegion) return false;
+
+                // 3. Trip Type Filter
+                if (_selectedTripType != "All") {
+                   if (!tags.contains(_selectedTripType)) return false; 
+                }
+
+                // 4. Halal Filter
+                if (_filterHalal && !tags.contains("Halal")) return false;
+
+                return true;
+              }).toList();
+              // ----------------------------------------------
+
+              if (filteredDocs.isEmpty) {
+                return _buildEmptyState(isCompleted, isFilterEmpty: true);
+              }
+
+              // ---------------- GROUPING LOGIC (Your Original) ----------------
+              Map<String, List<QueryDocumentSnapshot>> groupedTrips = {};
+              for (var doc in filteredDocs) {
+                final data = doc.data() as Map<String, dynamic>;
+                String country = data['country'] ?? "Other Trips";
+                if (!groupedTrips.containsKey(country)) {
+                  groupedTrips[country] = [];
+                }
+                groupedTrips[country]!.add(doc);
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: groupedTrips.length,
+                itemBuilder: (context, index) {
+                  String countryName = groupedTrips.keys.elementAt(index);
+                  List<QueryDocumentSnapshot> trips = groupedTrips[countryName]!;
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Country Header
+                      Padding(
+                        padding: const EdgeInsets.only(top: 10, bottom: 8),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.location_on, size: 16, color: Colors.pinkAccent),
+                            const SizedBox(width: 6),
+                            Text(
+                              countryName.toUpperCase(),
+                              style: TextStyle(
+                                color: Colors.pink.shade300,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1.2,
+                                fontSize: 13,
+                              ),
+                            ),
+                            const Expanded(child: Divider(indent: 10)),
+                          ],
+                        ),
+                      ),
+                      
+                      // Cards
+                      ...trips.map((doc) => _buildTripCard(context, doc, isCompleted)),
+                    ],
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEmptyState(bool isCompleted, {bool isFilterEmpty = false}) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.map_outlined, size: 60, color: Colors.grey.shade300),
-          const SizedBox(height: 16),
-          const Text("No trips planned yet!", style: TextStyle(color: Colors.grey)),
-          TextButton(
-            onPressed: () => Navigator.pushNamed(context, '/home'),
-            child: const Text("Ask Mochi to plan one!"),
+          Icon(
+            isFilterEmpty ? Icons.filter_list_off : (isCompleted ? Icons.photo_album : Icons.map_outlined), 
+            size: 60, 
+            color: Colors.grey.shade300
           ),
+          const SizedBox(height: 16),
+          Text(
+            isFilterEmpty 
+              ? "No trips match your filters!" 
+              : (isCompleted ? "No memories yet!" : "No upcoming trips!"), 
+            style: const TextStyle(color: Colors.grey)
+          ),
+          if (isFilterEmpty)
+            TextButton(
+              onPressed: () => setState(() {
+                _selectedRegion = "All";
+                _selectedTripType = "All";
+                _filterHalal = false;
+              }), 
+              child: const Text("Clear Filters"),
+            ),
+          if (!isFilterEmpty && !isCompleted)
+            TextButton(
+              onPressed: () => Navigator.pushNamed(context, '/home'),
+              child: const Text("Ask Mochi to plan one!"),
+            ),
         ],
       ),
     );
   }
 
-  Widget _buildTripCard(BuildContext context, DocumentSnapshot doc) {
+  Widget _buildTripCard(BuildContext context, DocumentSnapshot doc, bool isCompleted) {
     final data = doc.data() as Map<String, dynamic>;
     final tripName = data['trip_name'] ?? "Unknown Trip";
     final duration = data['duration'] ?? "? Days";
     final tags = List<String>.from(data['tags'] ?? []);
 
-  return GestureDetector(
+    return GestureDetector(
       onTap: () {
-        // ✅ 1. Get the JSON data safely
+        // Safe Data Parsing
         Map<String, dynamic> tripData = {};
-        
         if (data['trip_data'] != null) {
           tripData = data['trip_data'] as Map<String, dynamic>;
         } else {
-           // Fallback for old trips (Prevents crash)
            tripData = {
              "days": [], 
              "trip_name": tripName,
@@ -358,7 +393,8 @@ class _ItineraryPageState extends State<ItineraryPage> {
             builder: (_) => TripDetailsScreen(
               tripId: doc.id,
               tripName: tripName,
-              tripData: tripData, // ✅ Passing the Map
+              tripData: tripData,
+              isCompleted: isCompleted, 
             ),
           ),
         );
@@ -381,6 +417,7 @@ class _ItineraryPageState extends State<ItineraryPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // 1. TOP ROW: Name + Duration
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -399,17 +436,52 @@ class _ItineraryPageState extends State<ItineraryPage> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.pink.shade50,
+                    color: isCompleted ? Colors.grey.shade100 : Colors.pink.shade50,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
                     duration,
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.pink.shade400),
+                    style: TextStyle(
+                      fontSize: 12, 
+                      fontWeight: FontWeight.bold, 
+                      color: isCompleted ? Colors.grey : Colors.pink.shade400
+                    ),
                   ),
                 ),
               ],
             ),
+            
+            // 👇👇👇 PASTE THE NEW CODE HERE (BETWEEN ROW AND TAGS) 👇👇👇
+            
             const SizedBox(height: 8),
+
+            // 🔥 Show Rating if available (Only for Completed Trips)
+            if (isCompleted && data['rating'] != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8.0),
+                child: Row(
+                  children: [
+                    // Generate Star Icons based on rating
+                    ...List.generate(5, (index) {
+                       double rating = (data['rating'] as num).toDouble();
+                       if (index < rating) {
+                         return const Icon(Icons.star, size: 16, color: Colors.amber);
+                       } else {
+                         return const Icon(Icons.star_border, size: 16, color: Colors.grey);
+                       }
+                    }),
+                    const SizedBox(width: 5),
+                    Text(
+                      "${data['rating']}",
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.grey),
+                    )
+                  ],
+                ),
+              ),
+
+            // 👆👆👆 END OF NEW CODE 👆👆👆
+
+            // 3. TAGS WRAP
             if (tags.isNotEmpty)
               Wrap(
                 spacing: 6,
