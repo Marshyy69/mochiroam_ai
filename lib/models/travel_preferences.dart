@@ -4,7 +4,7 @@ class TravelPreferences {
   final int childrenCount;      // 🆕 Miss Siti: How many children?
   final String childrenAgeRange;// 🆕 Miss Siti: Range of age
   final bool hasElderly;
-  final bool isHalal;
+  bool isHalal;
   final List<String> tripVibe;  // 🆕 Miss Siti: Adventure, Nature, etc.
   final String budget;          // 🆕 Miss Siti: Budget per trip
   final String accommodation;   // 🆕 Miss Siti: Homestay vs Hotel

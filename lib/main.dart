@@ -16,7 +16,23 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Load env
-  await dotenv.load(fileName: ".env");
+ try {
+    // Attempt 1: Standard Path (If file is in assets/.env)
+    await dotenv.load(fileName: "assets/.env");
+    print("✅ SUCCESS: Loaded .env from 'assets/.env'");
+  } catch (e1) {
+    try {
+      // Attempt 2: Root Path (If file is just .env)
+      await dotenv.load(fileName: ".env");
+      print("✅ SUCCESS: Loaded .env from '.env'");
+    } catch (e2) {
+      print("🚨 CRITICAL ERROR: Could not load .env file!");
+      print("Attempt 1 error: $e1");
+      print("Attempt 2 error: $e2");
+      // If all fails, we create an empty map to prevent crashing
+      // (But your API calls won't work)
+    }
+  }
 
   // initialize Firebase
   await Firebase.initializeApp(

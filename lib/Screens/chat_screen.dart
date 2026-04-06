@@ -1,11 +1,16 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:dash_chat_2/dash_chat_2.dart';
-import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
+
+import '../services/gemini_service.dart';
+import '../services/preferences_service.dart';
 import '../services/photo_service.dart';
-import '../services/openai_service.dart';
+import '../services/itinerary_service.dart';
 import '../models/travel_preferences.dart';
+import '../models/itinerary_model.dart';
+import 'trip_details_screen.dart'; // Import this to navigate!
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -15,13 +20,17 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
-  final OpenAIService _openAIService = OpenAIService(); // Ensure you have this service instantiated
+  final ItineraryService _itineraryService = ItineraryService();
   
-  // 🤖 AI User (Static)
+  final ChatUser _currentUser = ChatUser(
+    id: FirebaseAuth.instance.currentUser?.uid ?? 'user',
+    firstName: 'You',
+  );
+  
   final ChatUser _aiUser = ChatUser(
     id: 'mochi_ai',
-    firstName: 'Mochi AI',
-    profileImage: 'assets/icons/dumpling.png', // We'll handle this in builder too
+    firstName: 'Mochi',
+    profileImage: 'assets/icons/dumpling.png', 
   );
 
   List<ChatMessage> _messages = [];
@@ -30,361 +39,212 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
-    // Initial Greeting
-    _messages.add(
-      ChatMessage(
-        text: "Hi! I'm Mochi. Where do you want to go today? ✈️🍡",
+    _addSystemMessage("Hi! I'm Mochi. Where do you want to go today? ✈️🍡");
+  }
+
+  void _addSystemMessage(String text, {Map<String, dynamic>? customProperties}) {
+    setState(() {
+      _messages.insert(0, ChatMessage(
+        text: text,
         user: _aiUser,
         createdAt: DateTime.now(),
-      ),
-    );
-
-    // Check for arguments (prompts from Home Screen)
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final args = ModalRoute.of(context)?.settings.arguments;
-      if (args != null && args is String) {
-        _handleInitialPrompt(args);
-      }
+        customProperties: customProperties, // ✅ We use this to pass Trip Data to the bubble
+      ));
     });
   }
 
-  // Handle prompt passed from Home Screen
-  void _handleInitialPrompt(String prompt) {
-    final user = FirebaseAuth.instance.currentUser;
-    // Temporary user for immediate display (will be updated by stream)
-    ChatUser me = ChatUser(id: user?.uid ?? 'user', firstName: user?.displayName ?? 'Traveler');
-    
-    ChatMessage message = ChatMessage(
-      text: prompt,
-      user: me,
-      createdAt: DateTime.now(),
-    );
-    _handleMessage(message);
-  }
-
-  // ... [Keep your existing _saveTripToFirestore function here] ...
-  Future<void> _saveTripToFirestore(Map<String, dynamic> tripData) async {
-    // (Paste your existing save logic here to keep the file clean)
-    // For brevity, I'm assuming you kept the logic from your previous code.
-     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
-
-      String country = tripData['country'] ?? "Uncategorized";
-      String continent = tripData['continent'] ?? "Other";
-      List<dynamic> tags = tripData['tags'] ?? [];
-
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('itineraries')
-          .add({
-        'trip_name': tripData['trip_name'] ?? "New Trip",
-        'duration': tripData['duration'] ?? "Unknown",
-        'country': country,
-        'continent': continent,
-        'tags': tags,
-        'trip_data': tripData, 
-        'created_at': FieldValue.serverTimestamp(),
-        'status': 'upcoming', // Default status
-      });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Trip saved successfully! 📝✅")),
-        );
-      }
-    } catch (e) {
-      print("Error saving trip: $e");
-    }
-  }
-
- Future<void> _handleMessage(ChatMessage message) async {
+  Future<void> _onSend(ChatMessage message) async {
     setState(() {
       _messages.insert(0, message);
-      _typingUsers.add(_aiUser); // 1. Add typing indicator
+      _typingUsers.add(_aiUser);
     });
 
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
-
-      // 1. Fetch User Preferences
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
-      final data = userDoc.data() ?? {};
+      TravelPreferences prefs = await PreferencesService.fetch();
       
-      final dynamicPrefs = TravelPreferences(
-        pax: data['pax'] ?? 2,
-        hasChildren: data['hasChildren'] ?? false,
-        childrenCount: data['childrenCount'] ?? 0,
-        childrenAgeRange: data['childrenAgeRange'] ?? "",
-        hasElderly: data['hasElderly'] ?? false,
-        isHalal: data['is_halal'] ?? false,
-        tripVibe: List<String>.from(data['tripVibe'] ?? ["Balanced"]), 
-        budget: data['budget'] ?? "Standard", 
-        accommodation: data['accommodation'] ?? "Hotel",
-      );
+     final response = await GeminiService.sendMessage(
+  userMessage: message.text,
+  prefs: prefs,
+  rules: "", 
+  previousMessages: _messages,
+);
 
-      // 2. Call OpenAI
-      final response = await OpenAIService.sendMessage(
-        userMessage: message.text,
-        prefs: dynamicPrefs,
-        rules: dynamicPrefs.toPromptString(),
-        previousMessages: _messages.length > 1 ? _messages.sublist(1) : [],
-      );
-
-      bool isItinerary = response['is_itinerary'] ?? false;
-      String displayText = "";
-
-      if (isItinerary) {
-        // Build Itinerary Text
-        String tripName = response['trip_name'] ?? "Trip";
-        String summary = response['summary'] ?? "";
-        List<dynamic> days = response['days'] ?? [];
-
-        StringBuffer buffer = StringBuffer();
-        buffer.writeln("## 🗺️ $tripName");
-        if (summary.isNotEmpty) buffer.writeln("\n_${summary}_\n");
-
-        for (var day in days) {
-          buffer.writeln("\n**Day ${day['day']}: ${day['theme']}**");
-          for (var activity in day['activities']) {
-             String time = activity['time'] ?? "";
-             String title = activity['title'] ?? "";
-             String emoji = "📍";
-             if (time.contains("Morning")) emoji = "☀️";
-             if (time.contains("Afternoon")) emoji = "🌤️";
-             if (time.contains("Evening") || time.contains("Night")) emoji = "🌙";
-             buffer.writeln("- $emoji **$time**: $title");
-          }
-        }
-        displayText = buffer.toString();
+      if (response.containsKey('trip_name')) {
+        await _handleItineraryGeneration(response);
       } else {
-        displayText = response['content'] ?? "I'm listening...";
-      }
-
-      // Remove typing indicator from Step 1
-      setState(() => _typingUsers.remove(_aiUser));
-
-      // 3. Photo Animation (Only if Itinerary)
-      if (isItinerary) {
-        setState(() => _typingUsers.add(_aiUser)); // Add again for photo
-        String tripName = response['trip_name'] ?? "";
-        String imageMarkdown = await PhotoService.getCityImage(tripName);
-        
-        if (mounted) {
-           setState(() {
-            _typingUsers.remove(_aiUser); // ✅ FIX: Remove immediately after photo loads
-            if (imageMarkdown.isNotEmpty) {
-              _messages.insert(0, ChatMessage(
-                text: imageMarkdown,
-                user: _aiUser,
-                createdAt: DateTime.now(),
-              ));
-            }
-          });
-        }
-      }
-
-      // 4. Add Text Response
-      setState(() => _typingUsers.add(_aiUser)); // Add again for text
-      await Future.delayed(const Duration(milliseconds: 500)); 
-
-      final botMessage = ChatMessage(
-        text: displayText,
-        user: _aiUser,
-        createdAt: DateTime.now(),
-        customProperties: isItinerary ? {
-          'is_itinerary': true,
-          'trip_data': response, 
-        } : null,
-      );
-
-      if (mounted) {
-        setState(() {
-          _typingUsers.remove(_aiUser); // Final remove
-          _messages.insert(0, botMessage);
-        });
+        final String text = response['content'] ?? "I'm having trouble thinking right now.";
+        _addSystemMessage(text);
       }
 
     } catch (e) {
-      print("Error: $e");
-      if (mounted) {
-        setState(() {
-          // Safety: Remove ALL instances of Mochi if error occurs
-          _typingUsers.removeWhere((u) => u.id == _aiUser.id);
-          _messages.insert(0, ChatMessage(text: "I couldn't connect. Please try again.", user: _aiUser, createdAt: DateTime.now()));
-        });
+      _addSystemMessage("Error: $e");
+    } finally {
+      setState(() {
+        _typingUsers.remove(_aiUser);
+      });
+    }
+  }
+
+  Future<void> _handleItineraryGeneration(Map<String, dynamic> data) async {
+    try {
+      _addSystemMessage("Ooo! Let me plan that for you... ✍️");
+
+      String city = data['country'] ?? data['trip_name'] ?? 'Travel';
+      String imageUrl = await PhotoService.getCityImage(city);
+      
+      String cleanUrl = "";
+      if (imageUrl.contains("](") && imageUrl.contains(")")) {
+         int start = imageUrl.indexOf("](") + 2;
+         int end = imageUrl.indexOf(")", start);
+         cleanUrl = imageUrl.substring(start, end);
       }
+
+      ItineraryModel newTrip = ItineraryModel(
+        userId: _currentUser.id,
+        tripName: data['trip_name'] ?? "Unknown Trip",
+        country: data['country'] ?? "Unknown",
+        duration: data['duration'] ?? "N/A",
+        summary: data['full_content'] ?? "No summary provided",
+        coverImage: cleanUrl.isNotEmpty ? cleanUrl : "https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1", 
+        tags: List<String>.from(data['tags'] ?? []),
+        isHalal: data['is_halal'] ?? false,
+        days: (data['trip_data'] != null && data['trip_data']['days'] != null)
+            ? (data['trip_data']['days'] as List).map((d) => DaySchedule.fromMap(d)).toList()
+            : (data['days'] as List? ?? []).map((d) => DaySchedule.fromMap(d)).toList(), // ✅ FIX: Check both spots
+        createdAt: DateTime.now(),
+        status: 'upcoming',
+      );
+
+      // Save to Firebase
+      await _itineraryService.saveTrip(newTrip);
+
+      // ✅ SHOW THE TRIP CARD IN CHAT
+      _addSystemMessage(
+        "I've planned your trip to ${newTrip.tripName}! 🎉",
+        customProperties: {
+          'isTrip': true,
+          'tripData': newTrip, // Pass the whole object to the UI
+        }
+      );
+      
+    } catch (e) {
+      print("Error saving trip: $e");
+      _addSystemMessage("I planned it, but couldn't save it. ($e)");
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: Colors.pink.shade300,
-        title: const Text("Ask Mochi AI", style: TextStyle(color: Colors.white)),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
+        title: const Text("Chat with Mochi"),
+        backgroundColor: Colors.white,
+        elevation: 0,
       ),
-      // 🔥 STREAM BUILDER: Listen to Real-time Profile Changes
-      body: StreamBuilder<DocumentSnapshot>(
-        stream: user != null 
-            ? FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots() 
-            : null,
-        builder: (context, snapshot) {
-          
-          // 1. Get Live User Data
-          String currentAvatar = "🍡"; // Default
-          String currentName = "Traveler";
+      body: DashChat(
+        currentUser: _currentUser,
+        onSend: _onSend,
+        messages: _messages,
+        typingUsers: _typingUsers,
+        messageOptions: MessageOptions(
+          showOtherUsersAvatar: true,
+          showCurrentUserAvatar: false,
+          avatarBuilder: (user, onPress, onLongPress) {
+            if (user.id == 'mochi_ai') {
+               return Padding(
+                 padding: const EdgeInsets.only(right: 8.0),
+                 child: CircleAvatar(
+                   backgroundColor: Colors.pink.shade50,
+                   backgroundImage: const AssetImage('assets/icons/dumpling.png'),
+                 ),
+               );
+            }
+            return const SizedBox.shrink();
+          },
+          messageDecorationBuilder: (msg, prev, next) {
+             final isUser = msg.user.id == _currentUser.id;
+             // If it's a Trip Card, transparent background
+             if (msg.customProperties != null && msg.customProperties!['isTrip'] == true) {
+               return const BoxDecoration(color: Colors.transparent);
+             }
+             return BoxDecoration(
+               color: isUser ? Colors.pink.shade100 : Colors.grey.shade100,
+               borderRadius: BorderRadius.circular(18),
+             );
+          },
+          // ✅ CUSTOM MESSAGE BUILDER
+          messageTextBuilder: (message, previousMessage, nextMessage) {
+             // 1. Check if this is a Trip Card
+             if (message.customProperties != null && message.customProperties!['isTrip'] == true) {
+               final ItineraryModel trip = message.customProperties!['tripData'];
+               
+               return Container(
+                 width: 250,
+                 padding: const EdgeInsets.all(12),
+                 decoration: BoxDecoration(
+                   color: Colors.white,
+                   borderRadius: BorderRadius.circular(16),
+                   border: Border.all(color: Colors.pink.shade100),
+                   boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
+                 ),
+                 child: Column(
+                   crossAxisAlignment: CrossAxisAlignment.start,
+                   children: [
+                     // Image Header
+                     ClipRRect(
+                       borderRadius: BorderRadius.circular(12),
+                       child: Image.network(
+                         trip.coverImage.isNotEmpty ? trip.coverImage : "https://via.placeholder.com/150", 
+                         height: 100, width: double.infinity, fit: BoxFit.cover
+                       ),
+                     ),
+                     const SizedBox(height: 10),
+                     Text("Trip to ${trip.tripName}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                     Text("${trip.duration} • ${trip.tags.firstOrNull ?? 'Fun'}", style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                     const SizedBox(height: 10),
+                     SizedBox(
+                       width: double.infinity,
+                       child: ElevatedButton(
+                         style: ElevatedButton.styleFrom(backgroundColor: Colors.pinkAccent),
+                         onPressed: () {
+                           // ✅ NAVIGATE TO DETAILS
+                           Navigator.push(
+                             context, 
+                             MaterialPageRoute(builder: (_) => TripDetailsScreen(trip: trip))
+                           );
+                         },
+                         child: const Text("View Itinerary ➔", style: TextStyle(color: Colors.white)),
+                       ),
+                     )
+                   ],
+                 ),
+               );
+             }
 
-          if (snapshot.hasData && snapshot.data != null && snapshot.data!.exists) {
-            final data = snapshot.data!.data() as Map<String, dynamic>;
-            currentAvatar = data['avatar'] ?? "🍡";
-            currentName = data['username'] ?? "Traveler";
-          }
-
-          // 2. Create "Me" User with Custom Properties for the Emoji
-          ChatUser me = ChatUser(
-            id: user?.uid ?? 'user',
-            firstName: currentName,
-            // We pass the emoji in customProperties so we can read it in the builder
-            customProperties: {'avatar': currentAvatar}, 
-          );
-
-          return DashChat(
-            currentUser: me,
-            typingUsers: _typingUsers,
-            messages: _messages,
-            onSend: _handleMessage,
-            
-            // 🎨 3. CUSTOM AVATAR BUILDER
-            messageOptions: MessageOptions(
-              showOtherUsersAvatar: true,
-              showCurrentUserAvatar: true, // Show YOUR avatar
-              
-              avatarBuilder: (ChatUser chatUser, onPress, onLongPress) {
-                // A. IF IT IS MOCHI (The AI)
-                if (chatUser.id == _aiUser.id) {
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8.0),
-                    child: Container(
-                      width: 35, height: 35,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.grey.shade300),
-                      ),
-                      padding: const EdgeInsets.all(2),
-                      child: Image.asset('assets/icons/dumpling.png'),
-                    ),
-                  );
-                }
-
-                // B. IF IT IS YOU (The User)
-                // Read the emoji from the customProperties we set earlier
-                String emoji = chatUser.customProperties?['avatar'] ?? "🍡";
-                
-                return Padding(
-                  padding: const EdgeInsets.only(left: 8.0), // Padding for right side
-                  child: Container(
-                    width: 38, height: 38,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: Colors.pink.shade50,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.pink.shade100, width: 1.5),
-                    ),
-                    child: Text(
-                      emoji, 
-                      style: const TextStyle(fontSize: 20),
-                    ),
-                  ),
-                );
-              },
-
-              // Message Bubble Styling
-              messageTextBuilder: (message, previous, next) {
-                final isUser = message.user.id == me.id;
-                
-                // Normal Text for User
-                if (isUser) {
-                  return Padding(
-                    padding: const EdgeInsets.all(4),
-                    child: Text(message.text, style: const TextStyle(color: Colors.black87)),
-                  );
-                }
-
-                // Markdown for Mochi
-                final bool isPlan = message.customProperties?['is_itinerary'] == true;
-                final tripData = message.customProperties?['trip_data'];
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.all(4),
-                      child: MarkdownBody(
-                        data: message.text,
-                        styleSheet: MarkdownStyleSheet(
-                          p: const TextStyle(fontSize: 16, color: Colors.black87),
-                          h2: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.pink.shade600),
-                          strong: TextStyle(fontWeight: FontWeight.w800, color: Colors.pink.shade600),
-                        ),
-                      ),
-                    ),
-                    if (isPlan && tripData != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 10, bottom: 5),
-                        child: ElevatedButton.icon(
-                          onPressed: () => _saveTripToFirestore(tripData),
-                          icon: const Icon(Icons.bookmark_add, color: Colors.white, size: 18),
-                          label: const Text("Save Itinerary", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.pinkAccent,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                            elevation: 2,
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                          ),
-                        ),
-                      ),
-                  ],
-                );
-              },
-              
-              messageDecorationBuilder: (msg, prev, next) {
-                 final isUser = msg.user.id == me.id;
-                 return BoxDecoration(
-                   color: isUser ? Colors.pink.shade100 : Colors.white,
-                   borderRadius: BorderRadius.circular(18),
-                   border: isUser ? null : Border.all(color: Colors.grey.shade200),
-                 );
-              },
-            ),
-
-            // Input Field Styling
-            inputOptions: InputOptions(
-              inputDecoration: InputDecoration(
-                hintText: "Ask me to plan a trip...",
-                filled: true,
-                fillColor: Colors.grey[100],
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              ),
-              alwaysShowSend: true,
-              sendButtonBuilder: (onSend) => IconButton(
-                icon: const Icon(Icons.send, color: Colors.pinkAccent), 
-                onPressed: onSend,
-              ),
-            ),
-          );
-        },
+             // 2. Normal Message
+             final isUser = message.user.id == _currentUser.id;
+             return MarkdownBody(
+               data: message.text,
+               styleSheet: MarkdownStyleSheet(
+                 p: TextStyle(color: isUser ? Colors.black87 : Colors.black87, fontSize: 16),
+               ),
+             );
+          },
+        ),
+        inputOptions: InputOptions(
+          inputDecoration: InputDecoration(
+            hintText: "Ask me to plan a trip...",
+            filled: true,
+            fillColor: Colors.grey[50],
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(25), borderSide: BorderSide.none),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          ),
+          sendButtonBuilder: (onSend) => IconButton(
+            icon: const Icon(Icons.send_rounded, color: Colors.pinkAccent),
+            onPressed: onSend,
+          ),
+        ),
       ),
     );
   }

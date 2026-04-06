@@ -2,7 +2,7 @@ name: mochiroam_ai
 description: "A new Flutter project."
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 1.0.0+2
 
 environment:
   sdk: ^3.10.1
@@ -47,6 +47,8 @@ dependencies:
   flutter_rating_bar: ^4.0.1
   image_picker: ^1.2.1
   firebase_storage: ^13.0.5
+  google_generative_ai: ^0.4.7
+  package_info_plus: ^9.0.1
 
 dev_dependencies:
   flutter_test:
@@ -58,5 +60,6 @@ flutter:
   uses-material-design: true
 
   assets:
+    - assets/.env
     - assets/images/
     - assets/icons/

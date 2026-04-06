@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../widgets/bottom_nav_bar.dart';
 import 'trip_details_screen.dart';
+import '../models/itinerary_model.dart';
 
 class ItineraryPage extends StatefulWidget {
   const ItineraryPage({super.key});
@@ -19,16 +20,13 @@ class _ItineraryPageState extends State<ItineraryPage> with SingleTickerProvider
   String _selectedTripType = "All"; // All, Family, Couple, Friends
   bool _filterHalal = false;
   
-  // Unused in your code but kept just in case
-  String _durationFilter = "Any"; 
-
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
   }
 
-  // ---------------- UI: The Filter Modal (YOUR EXACT CODE) ----------------
+  // ---------------- UI: The Filter Modal ----------------
   void _showFilterModal() {
     showModalBottomSheet(
       context: context,
@@ -78,7 +76,6 @@ class _ItineraryPageState extends State<ItineraryPage> with SingleTickerProvider
                   const SizedBox(height: 16),
 
                   // 2. Trip Type (Tags)
-                  
                   const Text("Trip Vibe", style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey)),
                   const SizedBox(height: 8),
                   Wrap(
@@ -142,7 +139,7 @@ class _ItineraryPageState extends State<ItineraryPage> with SingleTickerProvider
     return Scaffold(
       backgroundColor: Colors.white,
 
-      // -------------------- APP BAR (Updated with Tabs) --------------------
+      // -------------------- APP BAR --------------------
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.white,
@@ -187,11 +184,11 @@ class _ItineraryPageState extends State<ItineraryPage> with SingleTickerProvider
     );
   }
 
-  // 🔥 REUSABLE LIST BUILDER (Keeps your exact style)
+  // 🔥 REUSABLE LIST BUILDER (Restored Original Design)
   Widget _buildTripList(String uid, {required bool isCompleted}) {
     return Column(
       children: [
-        // 🔥 HEADER WITH FILTER BUTTON (Your Original Code)
+        // 🔥 HEADER WITH FILTER BUTTON
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
           child: Row(
@@ -249,7 +246,7 @@ class _ItineraryPageState extends State<ItineraryPage> with SingleTickerProvider
               var filteredDocs = docs.where((doc) {
                 final data = doc.data() as Map<String, dynamic>;
                 
-                // 1. Status Filter (New!)
+                // 1. Status Filter
                 String status = data['status'] ?? "upcoming";
                 if (isCompleted && status != 'completed') return false;
                 if (!isCompleted && status == 'completed') return false;
@@ -276,7 +273,7 @@ class _ItineraryPageState extends State<ItineraryPage> with SingleTickerProvider
                 return _buildEmptyState(isCompleted, isFilterEmpty: true);
               }
 
-              // ---------------- GROUPING LOGIC (Your Original) ----------------
+              // ---------------- GROUPING LOGIC (Restored!) ----------------
               Map<String, List<QueryDocumentSnapshot>> groupedTrips = {};
               for (var doc in filteredDocs) {
                 final data = doc.data() as Map<String, dynamic>;
@@ -297,7 +294,7 @@ class _ItineraryPageState extends State<ItineraryPage> with SingleTickerProvider
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Country Header
+                      // Country Header (Like in your screenshot: "CHINA")
                       Padding(
                         padding: const EdgeInsets.only(top: 10, bottom: 8),
                         child: Row(
@@ -367,35 +364,31 @@ class _ItineraryPageState extends State<ItineraryPage> with SingleTickerProvider
     );
   }
 
+  // 🔥 RESTORED ORIGINAL CARD DESIGN + BUG FIX
   Widget _buildTripCard(BuildContext context, DocumentSnapshot doc, bool isCompleted) {
     final data = doc.data() as Map<String, dynamic>;
+    
+    // ✅ BUG FIX: Reading 'trip_name' instead of 'destination'
     final tripName = data['trip_name'] ?? "Unknown Trip";
+    // ✅ BUG FIX: Reading 'duration' instead of 'date_range'
     final duration = data['duration'] ?? "? Days";
+    
     final tags = List<String>.from(data['tags'] ?? []);
 
     return GestureDetector(
       onTap: () {
-        // Safe Data Parsing
-        Map<String, dynamic> tripData = {};
-        if (data['trip_data'] != null) {
-          tripData = data['trip_data'] as Map<String, dynamic>;
-        } else {
-           tripData = {
-             "days": [], 
-             "trip_name": tripName,
-             "summary": data['full_content'] ?? "Legacy Trip"
-           };
-        }
+        // ✅ CONVERT TO MODEL HERE
+        // 'doc.data()' is the raw map, 'doc.id' is the ID
+        ItineraryModel trip = ItineraryModel.fromMap(
+           data, 
+           doc.id
+        );
 
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => TripDetailsScreen(
-              tripId: doc.id,
-              tripName: tripName,
-              tripData: tripData,
-              isCompleted: isCompleted, 
-            ),
+            // ✅ Pass the Clean Object
+            builder: (_) => TripDetailsScreen(trip: trip),
           ),
         );
       },
@@ -423,7 +416,7 @@ class _ItineraryPageState extends State<ItineraryPage> with SingleTickerProvider
               children: [
                 Expanded(
                   child: Text(
-                    tripName,
+                    tripName, // ✅ This will now show "Nature and Culture in China"
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -451,24 +444,21 @@ class _ItineraryPageState extends State<ItineraryPage> with SingleTickerProvider
               ],
             ),
             
-            // 👇👇👇 PASTE THE NEW CODE HERE (BETWEEN ROW AND TAGS) 👇👇👇
-            
             const SizedBox(height: 8),
 
-            // 🔥 Show Rating if available (Only for Completed Trips)
+            // 2. RATING (If Completed)
             if (isCompleted && data['rating'] != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8.0),
                 child: Row(
                   children: [
-                    // Generate Star Icons based on rating
                     ...List.generate(5, (index) {
                        double rating = (data['rating'] as num).toDouble();
-                       if (index < rating) {
-                         return const Icon(Icons.star, size: 16, color: Colors.amber);
-                       } else {
-                         return const Icon(Icons.star_border, size: 16, color: Colors.grey);
-                       }
+                       return Icon(
+                         index < rating ? Icons.star : Icons.star_border,
+                         size: 16, 
+                         color: Colors.amber
+                       );
                     }),
                     const SizedBox(width: 5),
                     Text(
@@ -478,8 +468,6 @@ class _ItineraryPageState extends State<ItineraryPage> with SingleTickerProvider
                   ],
                 ),
               ),
-
-            // 👆👆👆 END OF NEW CODE 👆👆👆
 
             // 3. TAGS WRAP
             if (tags.isNotEmpty)
