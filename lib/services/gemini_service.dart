@@ -110,7 +110,7 @@ class GeminiService {
 
     // 3. INITIALIZE GEMINI MODEL
     final model = GenerativeModel(
-      model: 'gemini-2.5-flash', // Lightning fast, huge context window
+    model: 'gemini-2.5-flash-lite', // Lightning fast, huge context window
       apiKey: _apiKey,
       systemInstruction: Content.system(systemPrompt), // ✅ Native system prompt support!
       generationConfig: GenerationConfig(
@@ -152,8 +152,16 @@ class GeminiService {
         return {"content": "I couldn't format that properly. Could you ask me again?"};
       }
 
-    } catch (e) {
-      return {"content": "Error connecting to Mochi Brain: $e"};
+   } catch (e) {
+      String errorString = e.toString();
+      
+      // Catch the server overload error gracefully
+      if (errorString.contains('503') || errorString.contains('high demand')) {
+        return {"content": "Mochi's brain is a little overloaded right now! 🍡 Too many travelers are asking for directions. Please try again in a minute!"};
+      }
+      
+      // Generic fallback for other errors
+      return {"content": "Oops, my brain disconnected: $e"};
     }
   }
 

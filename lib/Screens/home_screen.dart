@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart'; // 1. Add Firebase Auth
 import 'package:cloud_firestore/cloud_firestore.dart'; // 2. Add Firestore
 import '../widgets/bottom_nav_bar.dart';
 import 'profile_screen.dart'; 
+import 'package:flutter_animate/flutter_animate.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -35,7 +36,8 @@ class HomeScreen extends StatelessWidget {
     final user = FirebaseAuth.instance.currentUser; // Get current user
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      extendBody: true, // ✅ Lets content scroll UNDER the frosted glass nav bar
+      backgroundColor: const Color(0xFFFFF5F7),
       
       appBar: AppBar(
         elevation: 0,
@@ -109,7 +111,8 @@ class HomeScreen extends StatelessWidget {
         ],
       ),
 
-      body: SafeArea(
+     body: SafeArea(
+        bottom: false, // Prevents safe area from cutting off the glass effect
         child: Column(
           children: [
             Expanded(
@@ -118,15 +121,11 @@ class HomeScreen extends StatelessWidget {
                 child: Column(
                   children: [
                     const SizedBox(height: 24),
-
                     const Text(
                       "Where should Mochi take you next? 🍡✈️",
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                      ),
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
                       textAlign: TextAlign.center,
-                    ),
+                    ).animate().fade(duration: 500.ms).slideY(begin: 0.2), // ✨ Animate Title
 
                     const SizedBox(height: 24),
 
@@ -135,12 +134,8 @@ class HomeScreen extends StatelessWidget {
                       child: GridView.builder(
                         physics: const BouncingScrollPhysics(),
                         itemCount: suggestions.length,
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          crossAxisSpacing: 16,
-                          mainAxisSpacing: 16,
-                          childAspectRatio: 1.1,
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2, crossAxisSpacing: 16, mainAxisSpacing: 16, childAspectRatio: 1.1,
                         ),
                         itemBuilder: (context, index) {
                           final item = suggestions[index];
@@ -148,40 +143,40 @@ class HomeScreen extends StatelessWidget {
                             emoji: item["emoji"]!,
                             country: item["country"]!,
                             onTap: () {
-                              Navigator.pushNamed(
-                                context,
-                                '/chat',
-                                arguments: item["prompt"],
-                              );
+                              Navigator.pushNamed(context, '/chat', arguments: item["prompt"]);
                             },
-                          );
+                          )
+                          .animate(delay: (index * 100).ms) // ✨ Staggered animation
+                          .fade(duration: 400.ms)
+                          .scale(begin: const Offset(0.9, 0.9));
                         },
                       ),
                     ),
-
-                    const SizedBox(height: 8),
-
                     // Ask anything button
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.pushNamed(context, '/chat');
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.pink.shade100,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(24),
+                    // 🆕 WRAPPED IN PADDING TO PUSH IT ABOVE THE NAV BAR
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 100, top: 16), // <-- The magic fix
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.pushNamed(context, '/chat');
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.pink.shade100,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(24),
+                            ),
+                            elevation: 0,
                           ),
-                          elevation: 0,
-                        ),
-                        child: const Text(
-                          'Ask Mochi Anything 💬',
-                          style: TextStyle(
-                            color: Colors.black87,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
+                          child: const Text(
+                            'Ask Mochi Anything 💬',
+                            style: TextStyle(
+                              color: Colors.black87,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ),

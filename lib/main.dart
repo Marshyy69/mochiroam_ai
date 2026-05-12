@@ -11,6 +11,7 @@ import 'screens/itinerary_page.dart';
 import 'screens/login_screen.dart';
 import 'screens/preferences_screen.dart';
 import 'screens/signup_screen.dart';
+import 'screens/explore_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -95,6 +96,7 @@ class MochiRoamApp extends StatelessWidget {
         "/itinerary": (context) => const ItineraryPage(),
         "/chat": (context) => const ChatScreen(),
         "/account": (context) => const AccountScreen(),
+        '/explore': (context) => const ExploreScreen(),
         "/preferences": (context) => const PreferencesScreen(),
       },
     );

@@ -1,491 +1,252 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../widgets/bottom_nav_bar.dart';
-import 'trip_details_screen.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+
 import '../models/itinerary_model.dart';
+import 'trip_details_screen.dart';
+import '../widgets/bottom_nav_bar.dart'; // Make sure this path is correct!
 
-class ItineraryPage extends StatefulWidget {
+class ItineraryPage extends StatelessWidget {
   const ItineraryPage({super.key});
-
-  @override
-  State<ItineraryPage> createState() => _ItineraryPageState();
-}
-
-class _ItineraryPageState extends State<ItineraryPage> with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-
-  // ---------------- STATE: Active Filters ----------------
-  String _selectedRegion = "All"; // All, Asia, Europe, etc.
-  String _selectedTripType = "All"; // All, Family, Couple, Friends
-  bool _filterHalal = false;
-  
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-  }
-
-  // ---------------- UI: The Filter Modal ----------------
-  void _showFilterModal() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(25.0)),
-      ),
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (BuildContext context, StateSetter setModalState) {
-            return Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 50, height: 5,
-                      decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(10)),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  
-                  const Text("Filter Trips ✨", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 20),
-
-                  // 1. Region / Continent
-                  const Text("Region", style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey)),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    children: ["All", "Asia", "Europe", "Oceania", "America"].map((region) {
-                      final isSelected = _selectedRegion == region;
-                      return ChoiceChip(
-                        label: Text(region),
-                        selected: isSelected,
-                        selectedColor: Colors.pinkAccent,
-                        labelStyle: TextStyle(color: isSelected ? Colors.white : Colors.black),
-                        onSelected: (bool selected) {
-                          setModalState(() => _selectedRegion = selected ? region : "All");
-                        },
-                      );
-                    }).toList(),
-                  ),
-                  
-                  const SizedBox(height: 16),
-
-                  // 2. Trip Type (Tags)
-                  const Text("Trip Vibe", style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey)),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    children: ["All", "Family", "Couple", "Friends", "Solo"].map((type) {
-                      final isSelected = _selectedTripType == type;
-                      return ChoiceChip(
-                        label: Text(type),
-                        selected: isSelected,
-                        selectedColor: Colors.purpleAccent.shade100,
-                         labelStyle: TextStyle(color: isSelected ? Colors.white : Colors.black),
-                        onSelected: (bool selected) {
-                          setModalState(() => _selectedTripType = selected ? type : "All");
-                        },
-                      );
-                    }).toList(),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // 3. Halal Toggle
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text("Halal / Muslim Friendly 🌙", style: TextStyle(fontWeight: FontWeight.w600)),
-                    value: _filterHalal,
-                    activeColor: Colors.green,
-                    onChanged: (val) => setModalState(() => _filterHalal = val),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // Apply Button
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.pink,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                      ),
-                      onPressed: () {
-                        setState(() {}); 
-                        Navigator.pop(context);
-                      },
-                      child: const Text("Apply Filters", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
 
-    return Scaffold(
-      backgroundColor: Colors.white,
+    if (user == null) {
+      return const Scaffold(body: Center(child: Text("Please log in to see your trips.")));
+    }
 
-      // -------------------- APP BAR --------------------
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.white,
-        title: Row(
-          children: [
-            Image.asset("assets/icons/dumpling.png", height: 32),
-            const SizedBox(width: 10),
-            const Text(
-              "MY TRIPS",
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
-              ),
-            ),
-          ],
+    return DefaultTabController(
+      length: 2, // ✨ Two distinct tabs!
+      child: Scaffold(
+        extendBody: true, // For the frosted glass nav bar
+        backgroundColor: const Color(0xFFFFF5F7),
+        appBar: AppBar(
+          title: const Text("My Journeys ✈️", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          centerTitle: true,
+          bottom: TabBar(
+            indicatorColor: Colors.pinkAccent,
+            labelColor: Colors.pinkAccent,
+            unselectedLabelColor: Colors.black45,
+            tabs: const [
+              Tab(text: "Upcoming"),
+              Tab(text: "Memories"),
+            ],
+          ),
         ),
-        bottom: TabBar(
-          controller: _tabController,
-          labelColor: Colors.pink,
-          unselectedLabelColor: Colors.grey,
-          indicatorColor: Colors.pink,
-          tabs: const [
-            Tab(text: "Upcoming ✈️"),
-            Tab(text: "Memories 📸"),
+        bottomNavigationBar: const BottomNavBar(currentIndex: 2), // Index 2 is Itineraries
+        
+        body: TabBarView(
+          children: [
+            // ==========================================
+            // TAB 1: UPCOMING TRIPS (Active Planning)
+            // ==========================================
+            StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(user.uid)
+                  .collection('itineraries') // 👈 Points to active trips
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator(color: Colors.pink));
+                }
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return const Center(child: Text("No upcoming trips! Ask Mochi to plan one."));
+                }
+
+                final trips = snapshot.data!.docs;
+                return ListView.builder(
+                  padding: const EdgeInsets.only(top: 16, left: 16, right: 16, bottom: 100),
+                  itemCount: trips.length,
+                  itemBuilder: (context, index) {
+                    return _buildActiveTripCard(context, trips[index]);
+                  },
+                );
+              },
+            ),
+
+            // ==========================================
+            // TAB 2: MEMORIES (Archived Past Trips)
+            // ==========================================
+            StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(user.uid)
+                  .collection('private_memories') // 👈 Points to archived diary
+                  .orderBy('created_at', descending: true)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator(color: Colors.pink));
+                }
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return const Center(
+                    child: Text("No memories yet! Review an upcoming trip to add it here.",
+                      style: TextStyle(color: Colors.black54), textAlign: TextAlign.center,
+                    ),
+                  );
+                }
+
+                final memories = snapshot.data!.docs;
+                return ListView.builder(
+                  padding: const EdgeInsets.only(top: 16, left: 16, right: 16, bottom: 100),
+                  itemCount: memories.length,
+                  itemBuilder: (context, index) {
+                    return _buildMemoryCard(memories[index]);
+                  },
+                );
+              },
+            ),
           ],
         ),
       ),
-
-      // -------------------- BODY --------------------
-      body: user == null
-          ? const Center(child: Text("Please log in to view itineraries"))
-          : TabBarView(
-              controller: _tabController,
-              children: [
-                _buildTripList(user.uid, isCompleted: false), // Upcoming
-                _buildTripList(user.uid, isCompleted: true),  // Memories
-              ],
-            ),
-
-      bottomNavigationBar: const BottomNavBar(currentIndex: 1),
     );
   }
 
-  // 🔥 REUSABLE LIST BUILDER (Restored Original Design)
-  Widget _buildTripList(String uid, {required bool isCompleted}) {
-    return Column(
-      children: [
-        // 🔥 HEADER WITH FILTER BUTTON
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  // ---------------------------------------------------------
+  // WIDGET: ACTIVE TRIP CARD (With Hero Animation)
+  // ---------------------------------------------------------
+  Widget _buildActiveTripCard(BuildContext context, DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    final tripName = data['trip_name'] ?? "Unknown Trip";
+    final duration = data['duration'] ?? "? Days";
+    final tags = List<String>.from(data['tags'] ?? []);
+    final imageUrl = data['cover_image'] ?? "https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1";
+
+    return GestureDetector(
+      onTap: () {
+        ItineraryModel trip = ItineraryModel.fromMap(data, doc.id);
+        Navigator.push(context, MaterialPageRoute(builder: (_) => TripDetailsScreen(trip: trip)));
+      },
+      child: Container(
+        height: 200,
+        margin: const EdgeInsets.only(bottom: 16),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: Stack(
+            fit: StackFit.expand,
             children: [
-              Row(
-                children: [
-                  Icon(isCompleted ? Icons.photo_library : Icons.flight_takeoff, size: 22, color: Colors.black),
-                  const SizedBox(width: 8),
-                  Text(
-                    isCompleted ? "Your past trips" : "Your saved itineraries",
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+              Hero(tag: doc.id, child: Image.network(imageUrl, fit: BoxFit.cover)),
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                    colors: [Colors.transparent, Colors.black.withOpacity(0.8)],
                   ),
-                ],
+                ),
               ),
-              
-              // FILTER BUTTON
-              InkWell(
-                onTap: _showFilterModal,
-                borderRadius: BorderRadius.circular(20),
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.pink.shade50,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.pink.shade100),
-                  ),
-                  child: const Icon(Icons.tune, color: Colors.pink, size: 20),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(child: Text(tripName, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white), maxLines: 2, overflow: TextOverflow.ellipsis)),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(color: Colors.pinkAccent.withOpacity(0.9), borderRadius: BorderRadius.circular(12)),
+                          child: Text(duration, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    if (tags.isNotEmpty)
+                      Wrap(
+                        spacing: 6, runSpacing: 4,
+                        children: tags.take(3).map((tag) => Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.white38)),
+                          child: Text(tag, style: const TextStyle(fontSize: 10, color: Colors.white)),
+                        )).toList(),
+                      ),
+                  ],
                 ),
               ),
             ],
           ),
         ),
-
-        // 🔥 LIST WITH LOGIC
-        Expanded(
-          child: StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('users')
-                .doc(uid)
-                .collection('itineraries')
-                .orderBy('created_at', descending: true)
-                .snapshots(),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                return _buildEmptyState(isCompleted);
-              }
-
-              var docs = snapshot.data!.docs;
-
-              // ---------------- APPLY FILTERS ----------------
-              var filteredDocs = docs.where((doc) {
-                final data = doc.data() as Map<String, dynamic>;
-                
-                // 1. Status Filter
-                String status = data['status'] ?? "upcoming";
-                if (isCompleted && status != 'completed') return false;
-                if (!isCompleted && status == 'completed') return false;
-
-                String continent = data['continent'] ?? "Uncategorized";
-                List<dynamic> tags = data['tags'] ?? [];
-                
-                // 2. Region Filter
-                if (_selectedRegion != "All" && continent != _selectedRegion) return false;
-
-                // 3. Trip Type Filter
-                if (_selectedTripType != "All") {
-                   if (!tags.contains(_selectedTripType)) return false; 
-                }
-
-                // 4. Halal Filter
-                if (_filterHalal && !tags.contains("Halal")) return false;
-
-                return true;
-              }).toList();
-              // ----------------------------------------------
-
-              if (filteredDocs.isEmpty) {
-                return _buildEmptyState(isCompleted, isFilterEmpty: true);
-              }
-
-              // ---------------- GROUPING LOGIC (Restored!) ----------------
-              Map<String, List<QueryDocumentSnapshot>> groupedTrips = {};
-              for (var doc in filteredDocs) {
-                final data = doc.data() as Map<String, dynamic>;
-                String country = data['country'] ?? "Other Trips";
-                if (!groupedTrips.containsKey(country)) {
-                  groupedTrips[country] = [];
-                }
-                groupedTrips[country]!.add(doc);
-              }
-
-              return ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: groupedTrips.length,
-                itemBuilder: (context, index) {
-                  String countryName = groupedTrips.keys.elementAt(index);
-                  List<QueryDocumentSnapshot> trips = groupedTrips[countryName]!;
-
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Country Header (Like in your screenshot: "CHINA")
-                      Padding(
-                        padding: const EdgeInsets.only(top: 10, bottom: 8),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.location_on, size: 16, color: Colors.pinkAccent),
-                            const SizedBox(width: 6),
-                            Text(
-                              countryName.toUpperCase(),
-                              style: TextStyle(
-                                color: Colors.pink.shade300,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 1.2,
-                                fontSize: 13,
-                              ),
-                            ),
-                            const Expanded(child: Divider(indent: 10)),
-                          ],
-                        ),
-                      ),
-                      
-                      // Cards
-                      ...trips.map((doc) => _buildTripCard(context, doc, isCompleted)),
-                    ],
-                  );
-                },
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildEmptyState(bool isCompleted, {bool isFilterEmpty = false}) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            isFilterEmpty ? Icons.filter_list_off : (isCompleted ? Icons.photo_album : Icons.map_outlined), 
-            size: 60, 
-            color: Colors.grey.shade300
-          ),
-          const SizedBox(height: 16),
-          Text(
-            isFilterEmpty 
-              ? "No trips match your filters!" 
-              : (isCompleted ? "No memories yet!" : "No upcoming trips!"), 
-            style: const TextStyle(color: Colors.grey)
-          ),
-          if (isFilterEmpty)
-            TextButton(
-              onPressed: () => setState(() {
-                _selectedRegion = "All";
-                _selectedTripType = "All";
-                _filterHalal = false;
-              }), 
-              child: const Text("Clear Filters"),
-            ),
-          if (!isFilterEmpty && !isCompleted)
-            TextButton(
-              onPressed: () => Navigator.pushNamed(context, '/home'),
-              child: const Text("Ask Mochi to plan one!"),
-            ),
-        ],
       ),
-    );
+    ).animate().fade(duration: 500.ms).slideY(begin: 0.1);
   }
 
-  // 🔥 RESTORED ORIGINAL CARD DESIGN + BUG FIX
-  Widget _buildTripCard(BuildContext context, DocumentSnapshot doc, bool isCompleted) {
-    final data = doc.data() as Map<String, dynamic>;
-    
-    // ✅ BUG FIX: Reading 'trip_name' instead of 'destination'
-    final tripName = data['trip_name'] ?? "Unknown Trip";
-    // ✅ BUG FIX: Reading 'duration' instead of 'date_range'
-    final duration = data['duration'] ?? "? Days";
-    
-    final tags = List<String>.from(data['tags'] ?? []);
+  // ---------------------------------------------------------
+  // WIDGET: MEMORY DIARY CARD (With Photos & Rating)
+  // ---------------------------------------------------------
+  Widget _buildMemoryCard(DocumentSnapshot doc) {
+    final postData = doc.data() as Map<String, dynamic>;
+    final tripData = postData['itinerary_data'] as Map<String, dynamic>;
+    final images = List<String>.from(postData['images'] ?? []);
 
-    return GestureDetector(
-      onTap: () {
-        // ✅ CONVERT TO MODEL HERE
-        // 'doc.data()' is the raw map, 'doc.id' is the ID
-        ItineraryModel trip = ItineraryModel.fromMap(
-           data, 
-           doc.id
-        );
-
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            // ✅ Pass the Clean Object
-            builder: (_) => TripDetailsScreen(trip: trip),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, 4))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            child: Image.network(
+              images.isNotEmpty ? images.first : (tripData['cover_image'] ?? 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1'),
+              height: 180, width: double.infinity, fit: BoxFit.cover,
+            ),
           ),
-        );
-      },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.grey.shade100),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.pink.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 1. TOP ROW: Name + Duration
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Text(
-                    tripName, // ✅ This will now show "Nature and Culture in China"
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: isCompleted ? Colors.grey.shade100 : Colors.pink.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    duration,
-                    style: TextStyle(
-                      fontSize: 12, 
-                      fontWeight: FontWeight.bold, 
-                      color: isCompleted ? Colors.grey : Colors.pink.shade400
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            
-            const SizedBox(height: 8),
-
-            // 2. RATING (If Completed)
-            if (isCompleted && data['rating'] != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: Row(
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    ...List.generate(5, (index) {
-                       double rating = (data['rating'] as num).toDouble();
-                       return Icon(
-                         index < rating ? Icons.star : Icons.star_border,
-                         size: 16, 
-                         color: Colors.amber
-                       );
-                    }),
-                    const SizedBox(width: 5),
-                    Text(
-                      "${data['rating']}",
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.grey),
+                    Expanded(
+                      child: Text(tripData['trip_name'] ?? "My Trip", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    ),
+                    Row(
+                      children: [
+                        const Icon(Icons.star, color: Colors.amber, size: 18),
+                        const SizedBox(width: 4),
+                        Text(postData['rating'].toString(), style: const TextStyle(fontWeight: FontWeight.bold)),
+                      ],
                     )
                   ],
                 ),
-              ),
-
-            // 3. TAGS WRAP
-            if (tags.isNotEmpty)
-              Wrap(
-                spacing: 6,
-                runSpacing: 4,
-                children: tags.map((tag) => Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(6),
+                const SizedBox(height: 8),
+                Text(postData['description'] ?? "", style: const TextStyle(fontSize: 14, color: Colors.black87)),
+                
+                if (images.length > 1) ...[
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    height: 50,
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: images.length - 1,
+                      itemBuilder: (context, i) {
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.network(images[i + 1], width: 50, height: 50, fit: BoxFit.cover)),
+                        );
+                      },
+                    ),
                   ),
-                  child: Text(tag, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
-                )).toList(),
-              ),
-          ],
-        ),
+                ]
+              ],
+            ),
+          )
+        ],
       ),
-    );
+    ).animate().fade(duration: 500.ms).slideY(begin: 0.1);
   }
 }
