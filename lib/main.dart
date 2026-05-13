@@ -18,20 +18,12 @@ Future<void> main() async {
 
   // Load env
  try {
-    // Attempt 1: Standard Path (If file is in assets/.env)
     await dotenv.load(fileName: "assets/.env");
-    print("✅ SUCCESS: Loaded .env from 'assets/.env'");
-  } catch (e1) {
+  } catch (_) {
     try {
-      // Attempt 2: Root Path (If file is just .env)
       await dotenv.load(fileName: ".env");
-      print("✅ SUCCESS: Loaded .env from '.env'");
-    } catch (e2) {
-      print("🚨 CRITICAL ERROR: Could not load .env file!");
-      print("Attempt 1 error: $e1");
-      print("Attempt 2 error: $e2");
-      // If all fails, we create an empty map to prevent crashing
-      // (But your API calls won't work)
+    } catch (_) {
+      // .env not found — API calls won't work but app won't crash
     }
   }
 
@@ -84,6 +76,84 @@ class MochiRoamApp extends StatelessWidget {
             fontSize: 22, 
             fontWeight: FontWeight.w800, // Extra Bold for cuteness
           ),
+        ),
+
+        // 5. Global Input Field Styling
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: Color(0xFFF5E0E8)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: Color(0xFFF5E0E8)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: Color(0xFFF06292), width: 1.5),
+          ),
+          hintStyle: const TextStyle(color: Color(0xFFBDBDBD), fontSize: 14),
+        ),
+
+        // 6. Global Button Styling
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFFF06292),
+            foregroundColor: Colors.white,
+            elevation: 0,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(30),
+            ),
+            textStyle: GoogleFonts.nunito(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+
+        // 7. Global Card Styling
+        cardTheme: CardThemeData(
+          color: Colors.white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(color: Color(0xFFF5E0E8), width: 0.5),
+          ),
+        ),
+
+        // 8. Divider Styling
+        dividerTheme: const DividerThemeData(
+          color: Color(0xFFF5E0E8),
+          thickness: 0.8,
+          space: 32,
+        ),
+
+        // 9. Switch Styling
+        switchTheme: SwitchThemeData(
+          thumbColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) return const Color(0xFFF06292);
+            return Colors.grey.shade300;
+          }),
+          trackColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) return const Color(0xFFF8BBD0);
+            return Colors.grey.shade200;
+          }),
+        ),
+
+        // 10. Chip Styling
+        chipTheme: ChipThemeData(
+          backgroundColor: Colors.white,
+          selectedColor: const Color(0xFFFCE4EC),
+          labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: const BorderSide(color: Color(0xFFF5E0E8)),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         ),
       ),
 

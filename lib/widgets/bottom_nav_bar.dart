@@ -1,4 +1,4 @@
-import 'dart:ui'; // ✅ Required for ImageFilter
+import 'dart:ui';
 import 'package:flutter/material.dart';
 
 class BottomNavBar extends StatelessWidget {
@@ -6,61 +6,118 @@ class BottomNavBar extends StatelessWidget {
 
   const BottomNavBar({super.key, required this.currentIndex});
 
-void _onItemTapped(BuildContext context, int index) {
+  void _onItemTapped(BuildContext context, int index) {
     if (index == currentIndex) return;
-
     switch (index) {
-      case 0:
-        Navigator.pushReplacementNamed(context, "/home");
-        break;
-      case 1: // 🆕 INDEX 1 IS NOW EXPLORE
-        Navigator.pushReplacementNamed(context, "/explore");
-        break;
-      case 2: // INDEX 2 IS NOW ITINERARIES
-        Navigator.pushReplacementNamed(context, "/itinerary");
-        break;
-      case 3: // INDEX 3 IS NOW ACCOUNT
-        Navigator.pushReplacementNamed(context, "/account");
-        break;
+      case 0: Navigator.pushReplacementNamed(context, "/home"); break;
+      case 1: Navigator.pushReplacementNamed(context, "/explore"); break;
+      case 2: Navigator.pushReplacementNamed(context, "/itinerary"); break;
+      case 3: Navigator.pushReplacementNamed(context, "/account"); break;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
+    const activeColor = Color(0xFFF06292);
+    const inactiveColor = Color(0xFFBDBDBD);
+
+    final items = [
+      _NavItem(assetPath: 'assets/images/mascot.png', label: 'Home'),
+      _NavItem(icon: Icons.explore_outlined, label: 'Explore'),
+      _NavItem(assetPath: 'assets/icons/itinerary.png', label: 'Trips'),
+      _NavItem(assetPath: 'assets/icons/acc.png', label: 'Account'),
+    ];
+
+    return ClipRect(
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15), // 🧊 Frosted Glass Blur
+        filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
         child: Container(
-          // Soft pink translucent tint
-          color: const Color(0xFFFFF5F7).withOpacity(0.75), 
-          child: BottomNavigationBar(
-            currentIndex: currentIndex,
-            onTap: (index) => _onItemTapped(context, index),
-            selectedItemColor: Colors.pinkAccent,
-            unselectedItemColor: Colors.black45,
-            backgroundColor: Colors.transparent, // Must be transparent for glass effect
-            elevation: 0,
-            items: [
-              BottomNavigationBarItem(
-                icon: Image.asset('assets/images/mascot.png', width: 26, height: 26),
-                label: 'Home',
-              ),
-              BottomNavigationBarItem(
-                icon: const Icon(Icons.explore_outlined, size: 26), // 🆕 The Community Tab
-                label: 'Explore',
-              ),
-              BottomNavigationBarItem(
-                icon: Image.asset('assets/icons/itinerary.png', width: 26, height: 26),
-                label: 'Itineraries',
-              ),
-              BottomNavigationBarItem(
-                icon: Image.asset('assets/icons/acc.png', width: 26, height: 26),
-                label: 'Account',
+          decoration: BoxDecoration(
+            color: const Color(0xF0FFF5F7),
+            border: const Border(
+              top: BorderSide(color: Color(0xFFF8BBD0), width: 0.8),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFF06292).withValues(alpha: 0.06),
+                blurRadius: 12,
+                offset: const Offset(0, -4),
               ),
             ],
+          ),
+          child: SafeArea(
+            top: false,
+            child: SizedBox(
+              height: 64,
+              child: Row(
+                children: List.generate(items.length, (index) {
+                  final isActive = index == currentIndex;
+                  final item = items[index];
+                  return Expanded(
+                    child: GestureDetector(
+                      onTap: () => _onItemTapped(context, index),
+                      behavior: HitTestBehavior.opaque,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            // Icon
+                            AnimatedScale(
+                              scale: isActive ? 1.12 : 1.0,
+                              duration: const Duration(milliseconds: 200),
+                              child: item.assetPath != null
+                                  ? Image.asset(
+                                      item.assetPath!,
+                                      width: 24,
+                                      height: 24,
+                                      color: isActive ? activeColor : inactiveColor,
+                                    )
+                                  : Icon(
+                                      item.icon,
+                                      size: 24,
+                                      color: isActive ? activeColor : inactiveColor,
+                                    ),
+                            ),
+                            const SizedBox(height: 3),
+                            // Label
+                            Text(
+                              item.label,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                                color: isActive ? activeColor : inactiveColor,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            // Active dot indicator
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              width: isActive ? 5 : 0,
+                              height: isActive ? 5 : 0,
+                              decoration: const BoxDecoration(
+                                color: activeColor,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ),
+            ),
           ),
         ),
       ),
     );
   }
+}
+
+class _NavItem {
+  final String? assetPath;
+  final IconData? icon;
+  final String label;
+  const _NavItem({this.assetPath, this.icon, required this.label});
 }

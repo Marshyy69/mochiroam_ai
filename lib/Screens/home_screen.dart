@@ -1,108 +1,124 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // 1. Add Firebase Auth
-import 'package:cloud_firestore/cloud_firestore.dart'; // 2. Add Firestore
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../widgets/bottom_nav_bar.dart';
-import 'profile_screen.dart'; 
+import 'profile_screen.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
-  static const List<Map<String, String>> suggestions = [
+  // Each destination: country, emoji, prompt, and a gradient for the card
+  static const List<Map<String, dynamic>> suggestions = [
     {
       "country": "Japan",
       "emoji": "🇯🇵",
+      "days": "7 days",
       "prompt": "Plan a trip to Japan",
+      "gradientStart": Color(0xFFF48FB1),
+      "gradientEnd": Color(0xFFF06292),
     },
     {
       "country": "South Korea",
       "emoji": "🇰🇷",
+      "days": "5 days",
       "prompt": "Plan a trip to South Korea",
+      "gradientStart": Color(0xFF80DEEA),
+      "gradientEnd": Color(0xFF26C6DA),
     },
     {
       "country": "Thailand",
       "emoji": "🇹🇭",
+      "days": "6 days",
       "prompt": "Plan a trip to Thailand",
+      "gradientStart": Color(0xFFA5D6A7),
+      "gradientEnd": Color(0xFF66BB6A),
     },
     {
       "country": "Australia",
       "emoji": "🇦🇺",
+      "days": "10 days",
       "prompt": "Plan a trip to Australia",
+      "gradientStart": Color(0xFFFFCC80),
+      "gradientEnd": Color(0xFFFFA726),
     },
   ];
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser; // Get current user
+    final user = FirebaseAuth.instance.currentUser;
 
     return Scaffold(
-      extendBody: true, // ✅ Lets content scroll UNDER the frosted glass nav bar
+      extendBody: true,
       backgroundColor: const Color(0xFFFFF5F7),
-      
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.white,
-        automaticallyImplyLeading: false, 
+        automaticallyImplyLeading: false,
         title: Row(
           children: [
-            Image.asset(
-              'assets/images/mascot.png',
-              width: 36,
-              height: 36,
-            ),
-            const SizedBox(width: 10),
-            const Text(
-              'HOME',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-                color: Colors.black, 
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFCE4EC),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFF8BBD0)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Image.asset('assets/images/mascot.png', width: 22, height: 22),
+                  const SizedBox(width: 6),
+                  const Text(
+                    'MochiRoam',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFFC2185B),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
         ),
         actions: [
-          // 👤 LIVE AVATAR BUTTON (Top Right)
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
             child: InkWell(
-              onTap: () {
-                Navigator.push(
-                  context, 
-                  MaterialPageRoute(builder: (_) => const ProfileScreen())
-                );
-              },
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ProfileScreen()),
+              ),
               borderRadius: BorderRadius.circular(50),
-              // 🔥 STREAM BUILDER: Listens to the Avatar changes
               child: StreamBuilder<DocumentSnapshot>(
-                stream: user != null 
-                    ? FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots() 
+                stream: user != null
+                    ? FirebaseFirestore.instance
+                        .collection('users')
+                        .doc(user.uid)
+                        .snapshots()
                     : null,
                 builder: (context, snapshot) {
-                  // Default avatar if loading or no data
-                  String avatar = "🍡"; 
-                  
-                  if (snapshot.hasData && snapshot.data != null && snapshot.data!.exists) {
-                    final data = snapshot.data!.data() as Map<String, dynamic>;
-                    if (data.containsKey('avatar')) {
-                      avatar = data['avatar'];
-                    }
+                  String avatar = "🍡";
+                  if (snapshot.hasData &&
+                      snapshot.data != null &&
+                      snapshot.data!.exists) {
+                    final data =
+                        snapshot.data!.data() as Map<String, dynamic>;
+                    if (data.containsKey('avatar')) avatar = data['avatar'];
                   }
-
                   return Container(
-                    width: 40, 
-                    height: 40,
+                    width: 38,
+                    height: 38,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: Colors.pink.shade50,
+                      color: const Color(0xFFFCE4EC),
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.pink.shade100, width: 1.5),
+                      border: Border.all(
+                          color: const Color(0xFFF8BBD0), width: 1.5),
                     ),
-                    // Show the Emoji Avatar instead of Icon
-                    child: Text(
-                      avatar, 
-                      style: const TextStyle(fontSize: 22), 
-                    ),
+                    child: Text(avatar,
+                        style: const TextStyle(fontSize: 20)),
                   );
                 },
               ),
@@ -110,150 +126,282 @@ class HomeScreen extends StatelessWidget {
           ),
         ],
       ),
-
-     body: SafeArea(
-        bottom: false, // Prevents safe area from cutting off the glass effect
-        child: Column(
-          children: [
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Column(
-                  children: [
-                    const SizedBox(height: 24),
-                    const Text(
-                      "Where should Mochi take you next? 🍡✈️",
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
-                      textAlign: TextAlign.center,
-                    ).animate().fade(duration: 500.ms).slideY(begin: 0.2), // ✨ Animate Title
-
-                    const SizedBox(height: 24),
-
-                    // 🌍 Country Suggestions
-                    Expanded(
-                      child: GridView.builder(
-                        physics: const BouncingScrollPhysics(),
-                        itemCount: suggestions.length,
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2, crossAxisSpacing: 16, mainAxisSpacing: 16, childAspectRatio: 1.1,
-                        ),
-                        itemBuilder: (context, index) {
-                          final item = suggestions[index];
-                          return CountryCard(
-                            emoji: item["emoji"]!,
-                            country: item["country"]!,
-                            onTap: () {
-                              Navigator.pushNamed(context, '/chat', arguments: item["prompt"]);
-                            },
-                          )
-                          .animate(delay: (index * 100).ms) // ✨ Staggered animation
-                          .fade(duration: 400.ms)
-                          .scale(begin: const Offset(0.9, 0.9));
-                        },
-                      ),
-                    ),
-                    // Ask anything button
-                    // 🆕 WRAPPED IN PADDING TO PUSH IT ABOVE THE NAV BAR
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 100, top: 16), // <-- The magic fix
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: () {
-                            Navigator.pushNamed(context, '/chat');
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.pink.shade100,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(24),
-                            ),
-                            elevation: 0,
-                          ),
-                          child: const Text(
-                            'Ask Mochi Anything 💬',
-                            style: TextStyle(
-                              color: Colors.black87,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
+      body: SafeArea(
+        bottom: false,
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ── Greeting ─────────────────────────────────────────────
+                Builder(
+                  builder: (context) {
+                    final hour = DateTime.now().hour;
+                    String greeting;
+                    String emoji;
+                    if (hour < 12) {
+                      greeting = 'Good morning';
+                      emoji = '☀️';
+                    } else if (hour < 17) {
+                      greeting = 'Good afternoon';
+                      emoji = '🌤️';
+                    } else {
+                      greeting = 'Good evening';
+                      emoji = '🌙';
+                    }
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: Text(
+                        '$greeting! $emoji',
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF1A1A1A),
                         ),
                       ),
-                    ),
-
-                    const SizedBox(height: 16),
-                  ],
+                    ).animate().fade(duration: 400.ms);
+                  },
                 ),
-              ),
+
+                // ── Hero Banner ──────────────────────────────────────────
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFFCE4EC), Color(0xFFF8BBD0)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: const Color(0xFFF8BBD0)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF06292).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Text(
+                          'WHERE TO NEXT?',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFFC2185B),
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        "Where should Mochi\ntake you? 🍡✈️",
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF1A1A1A),
+                          height: 1.25,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      GestureDetector(
+                        onTap: () =>
+                            Navigator.pushNamed(context, '/chat'),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 13),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF06292),
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFFF06292)
+                                    .withValues(alpha: 0.3),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: const Center(
+                            child: Text(
+                              'Ask Mochi Anything 💬',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ).animate().fade(duration: 400.ms).slideY(begin: 0.15),
+
+                const SizedBox(height: 28),
+
+                // ── Section Title ─────────────────────────────────────
+                const Text(
+                  'Popular Destinations',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF1A1A1A),
+                  ),
+                ).animate().fade(duration: 400.ms, delay: 100.ms),
+
+                const SizedBox(height: 14),
+
+                // ── Destination Grid ──────────────────────────────────
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: suggestions.length,
+                  gridDelegate:
+                      const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 14,
+                    mainAxisSpacing: 14,
+                    childAspectRatio: 1.05,
+                  ),
+                  itemBuilder: (context, index) {
+                    final item = suggestions[index];
+                    return _DestinationCard(item: item)
+                        .animate(delay: (index * 80).ms)
+                        .fade(duration: 350.ms)
+                        .scale(begin: const Offset(0.93, 0.93));
+                  },
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
-
       bottomNavigationBar: const BottomNavBar(currentIndex: 0),
     );
   }
 }
 
-class CountryCard extends StatefulWidget {
-  final String emoji;
-  final String country;
-  final VoidCallback onTap;
-
-  const CountryCard({
-    super.key,
-    required this.emoji,
-    required this.country,
-    required this.onTap,
-  });
+class _DestinationCard extends StatefulWidget {
+  final Map<String, dynamic> item;
+  const _DestinationCard({required this.item});
 
   @override
-  State<CountryCard> createState() => _CountryCardState();
+  State<_DestinationCard> createState() => _DestinationCardState();
 }
 
-class _CountryCardState extends State<CountryCard> {
-  bool _hovered = false;
+class _DestinationCardState extends State<_DestinationCard> {
+  bool _pressed = false;
 
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedScale(
-          scale: _hovered ? 1.05 : 1.0,
-          duration: const Duration(milliseconds: 200),
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.pink.shade50,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black12.withOpacity(0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  widget.emoji,
-                  style: const TextStyle(fontSize: 40),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  widget.country,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) => setState(() => _pressed = false),
+      onTapCancel: () => setState(() => _pressed = false),
+      onTap: () => Navigator.pushNamed(
+        context,
+        '/chat',
+        arguments: widget.item["prompt"],
+      ),
+      child: AnimatedScale(
+        scale: _pressed ? 0.96 : 1.0,
+        duration: const Duration(milliseconds: 120),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: const Color(0xFFF5E0E8)),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFF06292).withValues(alpha: 0.10),
+                blurRadius: 18,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              // Gradient image area
+              Expanded(
+                child: Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        widget.item["gradientStart"] as Color,
+                        widget.item["gradientEnd"] as Color,
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(22)),
+                  ),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      Center(
+                        child: Text(
+                          widget.item["emoji"] as String,
+                          style: const TextStyle(fontSize: 40),
+                        ),
+                      ),
+                      // Subtle gradient overlay at the bottom
+                      Positioned(
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        height: 24,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.transparent,
+                                Colors.black.withValues(alpha: 0.05),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            ),
+              ),
+              // Text area
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      widget.item["country"] as String,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF1A1A1A),
+                      ),
+                    ),
+                    Text(
+                      widget.item["days"] as String,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: Color(0xFF9E9E9E),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),

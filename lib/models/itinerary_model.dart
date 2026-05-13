@@ -88,8 +88,6 @@ class ItineraryModel {
       'trip_data': {
         'days': days.map((d) => d.toMap()).toList(),
       },
-      // We also save a flat 'days' backup just in case
-      'days': days.map((d) => d.toMap()).toList(), 
     };
   }
 }

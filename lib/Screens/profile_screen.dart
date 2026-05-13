@@ -12,17 +12,16 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final User? user = FirebaseAuth.instance.currentUser;
   final TextEditingController _nameController = TextEditingController();
-  
-  String _selectedAvatar = "🍡"; // Default Avatar
+
+  String _selectedAvatar = "🍡";
   bool _isLoading = true;
   bool _isSaving = false;
-
-  // 🎭 Available Avatars (Emojis work great!)
-  final List<String> _avatars = ["🍡", "🐼", "🐱", "🦊", "🐸", "🐰", "🐯", "🐨"];
-
-  // 📊 Stats
   int _upcomingTrips = 0;
   int _completedTrips = 0;
+
+  final List<String> _avatars = [
+    "🍡", "🐼", "🐱", "🦊", "🐸", "🐰", "🐯", "🐨"
+  ];
 
   @override
   void initState() {
@@ -30,177 +29,303 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _loadProfile();
   }
 
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadProfile() async {
     if (user == null) return;
-
     try {
-      // 1. Get User Profile
-      DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection('users').doc(user!.uid).get();
-      
-      // 2. Get Trip Stats
-      QuerySnapshot trips = await FirebaseFirestore.instance
-          .collection('users').doc(user!.uid).collection('itineraries').get();
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user!.uid)
+          .get();
+      final trips = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user!.uid)
+          .collection('itineraries')
+          .get();
 
-      int upcoming = 0;
-      int completed = 0;
-      
+      int upcoming = 0, completed = 0;
       for (var doc in trips.docs) {
-        final data = doc.data() as Map<String, dynamic>;
-        if (data['status'] == 'completed') {
-          completed++;
-        } else {
-          upcoming++;
-        }
+        final d = doc.data();
+        if (d['status'] == 'completed') completed++; else upcoming++;
       }
 
       if (mounted) {
         setState(() {
-          _nameController.text = userDoc.exists ? (userDoc['username'] ?? "Traveler") : "Traveler";
-          _selectedAvatar = userDoc.exists ? (userDoc['avatar'] ?? "🍡") : "🍡";
+          _nameController.text =
+              userDoc.exists ? (userDoc['username'] ?? "Traveler") : "Traveler";
+          _selectedAvatar =
+              userDoc.exists ? (userDoc['avatar'] ?? "🍡") : "🍡";
           _upcomingTrips = upcoming;
           _completedTrips = completed;
           _isLoading = false;
         });
       }
-    } catch (e) {
-      print("Error loading profile: $e");
-      setState(() => _isLoading = false);
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   Future<void> _saveProfile() async {
     if (user == null) return;
     setState(() => _isSaving = true);
-
     try {
-      await FirebaseFirestore.instance.collection('users').doc(user!.uid).set({
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user!.uid)
+          .set({
         'username': _nameController.text.trim(),
         'avatar': _selectedAvatar,
         'updated_at': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
-
-      // Also update FirebaseAuth display name
       await user!.updateDisplayName(_nameController.text.trim());
-
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Profile Updated! ✅")));
-        Navigator.pop(context); // Go back
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: const Text("Profile updated! ✅"),
+          backgroundColor: const Color(0xFFF06292),
+          behavior: SnackBarBehavior.floating,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ));
+        Navigator.pop(context);
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text("Error: $e")));
+      }
     } finally {
       if (mounted) setState(() => _isSaving = false);
-    }
-  }
-
-  Future<void> _logout() async {
-    await FirebaseAuth.instance.signOut();
-    if (mounted) {
-       // Navigate back to Login Screen (Adjust route name if needed)
-       Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFFFF5F7),
       appBar: AppBar(
-        title: const Text("My Profile"),
+        title: const Text(
+          "Edit Profile",
+          style: TextStyle(
+              fontWeight: FontWeight.w800, color: Color(0xFF1A1A1A)),
+        ),
         backgroundColor: Colors.white,
         elevation: 0,
-        foregroundColor: Colors.black,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout, color: Colors.redAccent),
-            onPressed: _logout,
-            tooltip: "Logout",
-          )
-        ],
+        foregroundColor: const Color(0xFF1A1A1A),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, size: 18),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
-      body: _isLoading 
-          ? const Center(child: CircularProgressIndicator()) 
+      body: _isLoading
+          ? const Center(
+              child: CircularProgressIndicator(color: Color(0xFFF06292)))
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // 🎭 AVATAR SECTION
+                  // ── Avatar display ────────────────────────────────
                   Center(
-                    child: Container(
-                      width: 100, height: 100,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: Colors.pink.shade50,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.pink.shade100, width: 2),
-                      ),
-                      child: Text(_selectedAvatar, style: const TextStyle(fontSize: 50)),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  const Text("Choose your avatar", style: TextStyle(color: Colors.grey)),
-                  
-                  const SizedBox(height: 15),
-                  
-                  // AVATAR SELECTOR GRID
-                  Wrap(
-                    spacing: 10,
-                    children: _avatars.map((avatar) {
-                      final isSelected = _selectedAvatar == avatar;
-                      return GestureDetector(
-                        onTap: () => setState(() => _selectedAvatar = avatar),
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
+                    child: Stack(
+                      children: [
+                        Container(
+                          width: 90,
+                          height: 90,
                           decoration: BoxDecoration(
-                            color: isSelected ? Colors.pink.shade100 : Colors.grey.shade100,
+                            color: const Color(0xFFFCE4EC),
                             shape: BoxShape.circle,
-                            border: isSelected ? Border.all(color: Colors.pink, width: 2) : null,
+                            border: Border.all(
+                                color: const Color(0xFFF06292), width: 2.5),
                           ),
-                          child: Text(avatar, style: const TextStyle(fontSize: 24)),
+                          child: Center(
+                            child: Text(_selectedAvatar,
+                                style: const TextStyle(fontSize: 44)),
+                          ),
                         ),
-                      );
-                    }).toList(),
-                  ),
-
-                  const SizedBox(height: 30),
-
-                  // 📝 EDIT NAME
-                  TextField(
-                    controller: _nameController,
-                    decoration: InputDecoration(
-                      labelText: "Username",
-                      prefixIcon: const Icon(Icons.person_outline),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: Container(
+                            width: 28,
+                            height: 28,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFF06292),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.edit,
+                                color: Colors.white, size: 14),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
 
-                  const SizedBox(height: 30),
+                  const SizedBox(height: 8),
+                  const Text(
+                    "Choose your avatar",
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF9E9E9E),
+                        fontWeight: FontWeight.w500),
+                  ),
+                  const SizedBox(height: 16),
 
-                  // 📊 STATS CARDS
+                  // ── Avatar picker ─────────────────────────────────
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: const Color(0xFFF5E0E8)),
+                    ),
+                    child: Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      alignment: WrapAlignment.center,
+                      children: _avatars.map((avatar) {
+                        final isSelected = _selectedAvatar == avatar;
+                        return GestureDetector(
+                          onTap: () =>
+                              setState(() => _selectedAvatar = avatar),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 150),
+                            width: 52,
+                            height: 52,
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? const Color(0xFFFCE4EC)
+                                  : const Color(0xFFF5F5F5),
+                              shape: BoxShape.circle,
+                              border: isSelected
+                                  ? Border.all(
+                                      color: const Color(0xFFF06292),
+                                      width: 2)
+                                  : null,
+                            ),
+                            child: Center(
+                              child: Text(avatar,
+                                  style: const TextStyle(fontSize: 26)),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // ── Username field ────────────────────────────────
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: const Color(0xFFF5E0E8)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          "Display Name",
+                          style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF616161),
+                              letterSpacing: 0.3),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _nameController,
+                          style: const TextStyle(
+                              fontSize: 14, color: Color(0xFF1A1A1A)),
+                          decoration: InputDecoration(
+                            hintText: "Your name",
+                            hintStyle: const TextStyle(
+                                color: Color(0xFFBDBDBD)),
+                            prefixIcon: const Icon(Icons.person_outline,
+                                size: 18, color: Color(0xFFBDBDBD)),
+                            filled: true,
+                            fillColor: const Color(0xFFFAFAFA),
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 13),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: const BorderSide(
+                                  color: Color(0xFFF0F0F0)),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: const BorderSide(
+                                  color: Color(0xFFF0F0F0)),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: const BorderSide(
+                                  color: Color(0xFFF06292), width: 1.5),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // ── Stats ─────────────────────────────────────────
                   Row(
                     children: [
-                      _buildStatCard("Upcoming", _upcomingTrips, Colors.blue.shade50, Colors.blue),
-                      const SizedBox(width: 16),
-                      _buildStatCard("Memories", _completedTrips, Colors.purple.shade50, Colors.purple),
+                      _StatCard(
+                        label: "Upcoming",
+                        count: _upcomingTrips,
+                        bgColor: const Color(0xFFE3F2FD),
+                        textColor: const Color(0xFF1565C0),
+                        emoji: "✈️",
+                      ),
+                      const SizedBox(width: 12),
+                      _StatCard(
+                        label: "Memories",
+                        count: _completedTrips,
+                        bgColor: const Color(0xFFF3E5F5),
+                        textColor: const Color(0xFF6A1B9A),
+                        emoji: "📔",
+                      ),
                     ],
                   ),
 
-                  const SizedBox(height: 40),
+                  const SizedBox(height: 28),
 
-                  // 💾 SAVE BUTTON
+                  // ── Save button ───────────────────────────────────
                   SizedBox(
                     width: double.infinity,
-                    height: 50,
+                    height: 52,
                     child: ElevatedButton(
                       onPressed: _isSaving ? null : _saveProfile,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.pink,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                        backgroundColor: const Color(0xFFF06292),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(18)),
+                        shadowColor:
+                            const Color(0xFFF06292).withValues(alpha: 0.3),
                       ),
-                      child: _isSaving 
-                          ? const CircularProgressIndicator(color: Colors.white)
-                          : const Text("Save Changes", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                      child: _isSaving
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                  color: Colors.white, strokeWidth: 2.5),
+                            )
+                          : const Text(
+                              "Save Changes",
+                              style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700),
+                            ),
                     ),
                   ),
                 ],
@@ -208,8 +333,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
     );
   }
+}
 
-  Widget _buildStatCard(String label, int count, Color bgColor, Color textColor) {
+class _StatCard extends StatelessWidget {
+  final String label;
+  final int count;
+  final Color bgColor;
+  final Color textColor;
+  final String emoji;
+
+  const _StatCard({
+    required this.label,
+    required this.count,
+    required this.bgColor,
+    required this.textColor,
+    required this.emoji,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(16),
@@ -219,9 +361,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         child: Column(
           children: [
-            Text(count.toString(), style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: textColor)),
+            Text(emoji, style: const TextStyle(fontSize: 22)),
             const SizedBox(height: 4),
-            Text(label, style: TextStyle(fontSize: 14, color: textColor.withOpacity(0.8))),
+            Text(
+              count.toString(),
+              style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: textColor),
+            ),
+            Text(
+              label,
+              style: TextStyle(
+                  fontSize: 12,
+                  color: textColor.withValues(alpha: 0.8),
+                  fontWeight: FontWeight.w500),
+            ),
           ],
         ),
       ),

@@ -1,11 +1,11 @@
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:dash_chat_2/dash_chat_2.dart';
-import 'package:google_generative_ai/google_generative_ai.dart'; // ✅ NEW IMPORT
+import 'package:google_generative_ai/google_generative_ai.dart';
 
 import '../models/travel_preferences.dart';
-import 'serp_api_service.dart'; 
-import 'recommendation_rules.dart'; 
+import 'serp_api_service.dart';
+import 'recommendation_rules.dart';
 
 class GeminiService {
   static String get _apiKey => dotenv.env['GEMINI_API_KEY'] ?? '';
@@ -13,166 +13,152 @@ class GeminiService {
   static Future<Map<String, dynamic>> sendMessage({
     required String userMessage,
     required TravelPreferences prefs,
-    required String rules, 
+    required String rules,
     List<ChatMessage>? previousMessages,
   }) async {
-    
     if (_apiKey.isEmpty) {
       return {"content": "⚠️ Gemini API key not configured."};
     }
 
-    // 1. SETUP RULES & CONTEXT (Same as your old logic)
-    String smartRules = RecommendationRules.build(prefs);
-    String realDataContext = "";
-    String negativeFilter = "";
+    // ── 1. BUILD RULES & DETECT PLANNING QUERY ─────────────────────
+    final String smartRules = RecommendationRules.build(prefs);
+    final String msgLower = userMessage.toLowerCase();
 
-    bool isPlanningQuery = userMessage.toLowerCase().contains("trip") || 
-                           userMessage.toLowerCase().contains("plan") ||
-                           userMessage.toLowerCase().contains("itinerary");
+    final bool isPlanningQuery = msgLower.contains("trip") ||
+        msgLower.contains("plan") ||
+        msgLower.contains("itinerary") ||
+        msgLower.contains("travel to") ||
+        msgLower.contains("visit");
 
-    if (prefs.isHalal) {
-       negativeFilter = """
-       CRITICAL HALAL ENFORCEMENT:
-       - STRICTLY FORBIDDEN: Babi, Pork, Pig, Bak Kut Teh, Char Siew, Wine, Beer, Bars, Pubs.
-       - FORBIDDEN REPETITION: Do NOT suggest 'Wagyu' or 'Yakiniku' more than ONCE per trip.
-       """;
-    }
+    // ── 2. FIRE SERP API IN PARALLEL (only for planning queries) ───
+    // Start the search immediately — don't wait for it before building the prompt
+    final Future<String> placesSearch = isPlanningQuery
+        ? SerpApiService.findPlaces(
+            userMessage,
+            isHalal: prefs.isHalal,
+            budget: prefs.budget,
+          )
+        : Future.value("");
 
-    if (isPlanningQuery) {
-         print("🔍 Fetching Real Restaurants (Halal Mode: ${prefs.isHalal})");
-         String places = await SerpApiService.findPlaces(userMessage, isHalal: prefs.isHalal);
-         
-         if (places.isNotEmpty) {
-           realDataContext = """
-           REAL-TIME GOOGLE MAPS DATA (Top Rated Places):
-           $places
-           
-           INSTRUCTIONS:
-           1. Use these EXACT restaurants for Lunch/Dinner matching the location.
-           2. DIVERSITY: Mix up the cuisines (Ramen, Sushi, etc).
-           3. If the user is Halal, ONLY use the Halal options provided.
-           4. If the user is NOT Halal, suggest the popular spots provided.
-           """;
-         }
-    }
+    // ── 3. BUILD COMPACT SYSTEM PROMPT ──────────────────────────────
+    final systemPrompt = _buildSystemPrompt(prefs, smartRules);
 
-  // 2. SYSTEM PROMPT (With JSON Blueprint Restored)
-    String systemPrompt = """
-    You are Mochi, a smart AI travel companion.
-    
-    USER PREFERENCES:
-    $smartRules
-    $negativeFilter
-
-    REAL-TIME DATA:
-    $realDataContext
-
-    YOUR GOAL:
-    Return a strict JSON object.
-
-    ### CRITICAL DENSITY RULES:
-    You MUST provide at least 5-6 activities PER DAY.
-    Structure every day exactly like this:
-    1. Morning Activity
-    2. Late Morning Activity
-    3. Lunch (Must be a Restaurant)
-    4. Afternoon Activity
-    5. Dinner (Must be a Restaurant)
-    6. Night Activity
-
-    ### CRITICAL JSON STRUCTURE (COPY THIS EXACTLY):
-    {
-      "trip_name": "Trip Title",
-      "country": "Country",
-      "duration": "X Days",
-      "full_content": "Summary...",
-      "cover_image": "http...",
-      "tags": ["Tag1", "Tag2"],
-      "is_halal": ${prefs.isHalal},
-      "trip_data": {
-        "days": [
-           {
-             "day": 1,
-             "theme": "Theme Name",
-             "activities": [
-                { "time": "09:00 AM", "title": "Activity 1", "desc": "Desc" },
-                { "time": "11:00 AM", "title": "Activity 2", "desc": "Desc" },
-                { "time": "Lunch", "title": "Lunch at [Name]", "desc": "Desc." }, 
-                { "time": "02:00 PM", "title": "Activity 3", "desc": "Desc" },
-                { "time": "Dinner", "title": "Dinner at [Name]", "desc": "Desc." },
-                { "time": "08:00 PM", "title": "Activity 4", "desc": "Desc" }
-             ]
-           }
-        ]
-      }
-    }
-    """;
-
-    // 3. INITIALIZE GEMINI MODEL
+    // ── 4. INITIALIZE MODEL ────────────────────────────────────────
     final model = GenerativeModel(
-    model: 'gemini-2.5-flash-lite', // Lightning fast, huge context window
+      model: 'gemini-2.5-flash-lite',
       apiKey: _apiKey,
-      systemInstruction: Content.system(systemPrompt), // ✅ Native system prompt support!
+      systemInstruction: Content.system(systemPrompt),
       generationConfig: GenerationConfig(
-        responseMimeType: 'application/json', // ✅ Forces pure JSON output
-        temperature: 0.7,
+        responseMimeType: 'application/json',
+        temperature: 0.5,
+        maxOutputTokens: 8192,
       ),
     );
 
-    // 4. MAP DASHCHAT HISTORY TO GEMINI HISTORY
+    // ── 5. WAIT FOR SERP RESULTS & BUILD USER MESSAGE ──────────────
+    final String realPlaces = await placesSearch;
+    final String enrichedMessage = _buildUserMessage(
+      userMessage,
+      realPlaces,
+      prefs,
+    );
+
+    // ── 6. MAP DASHCHAT HISTORY TO GEMINI HISTORY ──────────────────
     List<Content> chatHistory = [];
     if (previousMessages != null) {
-      // Take the last 4 messages and reverse them to chronological order
       for (var msg in previousMessages.reversed.take(4)) {
-        // DashChat uses 'user' for current user. Gemini uses 'user' and 'model'
         final role = msg.user.id == 'user' ? 'user' : 'model';
         chatHistory.add(Content(role, [TextPart(msg.text)]));
       }
     }
 
     try {
-      // 5. START CHAT & SEND MESSAGE
+      // ── 7. SEND TO GEMINI ──────────────────────────────────────────
       final chat = model.startChat(history: chatHistory);
-      final response = await chat.sendMessage(Content.text(userMessage));
-      
+      final response = await chat.sendMessage(Content.text(enrichedMessage));
+
       final String contentString = response.text ?? "";
 
-      // 6. PARSE JSON (Look how clean this is now!)
+      // ── 8. PARSE JSON ──────────────────────────────────────────────
       try {
-        Map<String, dynamic> tripData = jsonDecode(contentString) as Map<String, dynamic>;
-        
-        // 🚓 HALAL POLICE (Still active!)
+        Map<String, dynamic> tripData =
+            jsonDecode(contentString) as Map<String, dynamic>;
+
+        // Halal post-processing filter
         if (prefs.isHalal) {
           _enforceHalal(tripData);
         }
-        
-        return tripData; 
-      } catch (e) {
-        print("JSON Parsing Error: $e");
-        return {"content": "I couldn't format that properly. Could you ask me again?"};
+
+        return tripData;
+      } catch (_) {
+        return {
+          "content":
+              "I couldn't format that properly. Could you ask me again?"
+        };
+      }
+    } catch (e) {
+      String errorString = e.toString();
+
+      if (errorString.contains('503') ||
+          errorString.contains('high demand')) {
+        return {
+          "content":
+              "Mochi's brain is a little overloaded right now! 🍡 Too many travelers are asking for directions. Please try again in a minute!"
+        };
       }
 
-   } catch (e) {
-      String errorString = e.toString();
-      
-      // Catch the server overload error gracefully
-      if (errorString.contains('503') || errorString.contains('high demand')) {
-        return {"content": "Mochi's brain is a little overloaded right now! 🍡 Too many travelers are asking for directions. Please try again in a minute!"};
-      }
-      
-      // Generic fallback for other errors
       return {"content": "Oops, my brain disconnected: $e"};
     }
   }
 
-  // 🚓 THE HALAL POLICE (Unchanged)
+  /// Builds a compact, structured system prompt that enforces all user preferences.
+  static String _buildSystemPrompt(
+      TravelPreferences prefs, String smartRules) {
+    return """
+You are Mochi, a smart AI travel companion. Generate detailed trip itineraries as JSON.
+
+USER PREFERENCES (MUST FOLLOW STRICTLY):
+$smartRules
+
+RULES:
+- Structure each day with 5-6 activities: Morning → Late Morning → Lunch → Afternoon → Dinner → Evening.
+- Lunch and Dinner MUST be at named restaurants.
+- Match activities to the user's interests, budget, and group type.
+${prefs.isHalal ? "- HALAL ENFORCEMENT: No pork, no alcohol, no bars/pubs. Only Halal/Muslim-friendly food." : ""}
+
+JSON SCHEMA (follow exactly):
+{"trip_name":"string","country":"string","duration":"X Days","full_content":"2-3 sentence summary","cover_image":"","tags":["string"],"is_halal":${prefs.isHalal},"trip_data":{"days":[{"day":1,"theme":"string","activities":[{"time":"09:00 AM","title":"string","desc":"string"}]}]}}
+""";
+  }
+
+  /// Builds the final user message with real-time restaurant data injected.
+  static String _buildUserMessage(
+    String userMessage,
+    String realPlaces,
+    TravelPreferences prefs, 
+  ) {
+    if (realPlaces.isEmpty) return userMessage;
+
+    return """
+$userMessage
+
+REAL-TIME RESTAURANT DATA (use these for Lunch/Dinner slots):
+$realPlaces
+
+Use these exact restaurant names where they match the location. Mix cuisines for variety.${prefs.isHalal ? " ONLY use Halal options." : ""}
+""";
+  }
+
+  /// Post-processing halal filter as a safety net.
   static void _enforceHalal(Map<String, dynamic> tripData) {
     final List<String> haramWords = [
-      "babi", "pork", "pig", "bak kut teh", "char siew", "beer", "wine", "bar ", "pub ", "izakaya"
+      "babi", "pork", "pig", "bak kut teh", "char siew",
+      "beer", "wine", "bar ", "pub ", "izakaya"
     ];
 
     List<dynamic> days = [];
-    if (tripData['trip_data'] != null && tripData['trip_data']['days'] != null) {
+    if (tripData['trip_data'] != null &&
+        tripData['trip_data']['days'] != null) {
       days = tripData['trip_data']['days'];
     } else if (tripData['days'] != null) {
       days = tripData['days'];
@@ -184,10 +170,10 @@ class GeminiService {
         String title = act['title'].toString().toLowerCase();
         String desc = act['desc'].toString().toLowerCase();
 
-        bool isHaram = haramWords.any((word) => title.contains(word) || desc.contains(word));
+        bool isHaram =
+            haramWords.any((word) => title.contains(word) || desc.contains(word));
 
         if (isHaram) {
-          print("🚨 HALAL POLICE: Censored '${act['title']}'");
           act['title'] = "Local Halal Delight";
           act['desc'] = "A verified Muslim-friendly restaurant nearby.";
         }

@@ -6,16 +6,18 @@ class ItineraryService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // 1. Save a new Trip
-  Future<void> saveTrip(ItineraryModel trip) async {
+  // 1. Save a new Trip — returns the Firestore document ID
+  Future<String?> saveTrip(ItineraryModel trip) async {
     final user = _auth.currentUser;
-    if (user == null) return;
+    if (user == null) return null;
 
-    await _db
+    final docRef = await _db
         .collection('users')
         .doc(user.uid)
         .collection('itineraries')
         .add(trip.toMap());
+
+    return docRef.id;
   }
 
   // 2. Fetch all Trips (Stream)
