@@ -16,14 +16,26 @@ class ExploreScreen extends StatefulWidget {
 class _ExploreScreenState extends State<ExploreScreen> {
   String _searchQuery = '';
   String _sortBy = 'Recent';
-  final Set<String> _likedPostIds = {};
+  static String? _lastUid;
+  static final Set<String> _likedPostIds = {};
+  /// Local optimistic overrides for like counts, keyed by post ID.
+  /// This ensures the count updates instantly in the UI before Firestore
+  /// streams catch up.
+  static final Map<String, int> _likesCountOverrides = {};
   final TextEditingController _searchController = TextEditingController();
   final _sortOptions = ['Recent', 'Highest Rated', 'Most Liked'];
   Timer? _debounceTimer;
+  bool _hasReceivedData = false; // Track if we've ever received data from the stream
+
+  late final Stream<QuerySnapshot> _postsStream;
 
   @override
   void initState() {
     super.initState();
+    _postsStream = FirebaseFirestore.instance
+        .collection('public_posts')
+        .orderBy('created_at', descending: true)
+        .snapshots(includeMetadataChanges: true);
     _loadLikedPosts();
   }
 
@@ -34,56 +46,82 @@ class _ExploreScreenState extends State<ExploreScreen> {
     super.dispose();
   }
 
+  /// Returns the effective like count for a post, using the local optimistic
+  /// override if available, otherwise falling back to the Firestore value.
+  int _effectiveLikes(String postId, int firestoreCount) {
+    return _likesCountOverrides[postId] ?? firestoreCount;
+  }
+
   /// Loads all liked post IDs for the current user in a SINGLE batch query.
   Future<void> _loadLikedPosts() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
+    
+    // Clear cache if user changed
+    if (_lastUid != uid) {
+      _likedPostIds.clear();
+      _likesCountOverrides.clear();
+      _lastUid = uid;
+    }
+
     try {
-      // Single collectionGroup query instead of N+1 sequential reads
+      // Single collectionGroup query using 'userId' field
       final likesSnap = await FirebaseFirestore.instance
           .collectionGroup('likes')
-          .where(FieldPath.documentId, isEqualTo: uid)
+          .where('userId', isEqualTo: uid)
           .get();
       final Set<String> likedIds = {};
       for (var doc in likesSnap.docs) {
         // Parent path: public_posts/{postId}/likes/{uid}
         likedIds.add(doc.reference.parent.parent!.id);
       }
-      if (mounted) setState(() {
-        _likedPostIds.addAll(likedIds);
-      });
-    } catch (_) {
-      // Fallback: load likes per post (in case collectionGroup index missing)
-      final snap = await FirebaseFirestore.instance.collection('public_posts').get();
-      final futures = snap.docs.map((doc) => doc.reference.collection('likes').doc(uid).get());
-      final results = await Future.wait(futures);
-      final Set<String> likedIds = {};
-      for (int i = 0; i < results.length; i++) {
-        if (results[i].exists) likedIds.add(snap.docs[i].id);
+      if (mounted) {
+        setState(() {
+          _likedPostIds.addAll(likedIds);
+        });
       }
-      if (mounted) setState(() {
-        _likedPostIds.addAll(likedIds);
-      });
+    } catch (_) {
+      // Fallback commented out to prevent flooding Firestore with requests
+      // when permission is denied or the index is missing. 
+      // The user must update their Firestore security rules instead.
+      debugPrint("Failed to load likes. Check Firestore Security Rules.");
     }
   }
 
   /// Toggles like state with optimistic UI and proper Firestore persistence.
-  Future<void> _toggleLike(String postId) async {
+  Future<void> _toggleLike(String postId, int currentDisplayedCount) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
     final ref = FirebaseFirestore.instance.collection('public_posts').doc(postId);
     final likeRef = ref.collection('likes').doc(uid);
 
     if (_likedPostIds.contains(postId)) {
-      // Optimistic: toggle icon immediately
-      setState(() => _likedPostIds.remove(postId));
-      // Persist to Firestore (fire-and-forget)
+      // Optimistic: toggle icon AND count immediately
+      final newCount = (currentDisplayedCount - 1).clamp(0, 999999);
+      setState(() {
+        _likedPostIds.remove(postId);
+        _likesCountOverrides[postId] = newCount;
+      });
+      // Persist to Firestore (fire-and-forget), then clear override when stream catches up
       likeRef.delete();
-      ref.update({'likes_count': FieldValue.increment(-1)});
+      ref.update({'likes_count': FieldValue.increment(-1)}).then((_) {
+        // Clear override after Firestore confirms — stream will provide fresh data
+        if (mounted) setState(() => _likesCountOverrides.remove(postId));
+      });
     } else {
-      setState(() => _likedPostIds.add(postId));
-      likeRef.set({'liked_at': FieldValue.serverTimestamp()});
-      ref.update({'likes_count': FieldValue.increment(1)});
+      final newCount = currentDisplayedCount + 1;
+      setState(() {
+        _likedPostIds.add(postId);
+        _likesCountOverrides[postId] = newCount;
+      });
+      // Fire-and-forget write with userId field for future queries
+      likeRef.set({
+        'liked_at': FieldValue.serverTimestamp(),
+        'userId': uid,
+      });
+      ref.update({'likes_count': FieldValue.increment(1)}).then((_) {
+        if (mounted) setState(() => _likesCountOverrides.remove(postId));
+      });
     }
   }
 
@@ -157,26 +195,33 @@ class _ExploreScreenState extends State<ExploreScreen> {
       ),
       bottomNavigationBar: const BottomNavBar(currentIndex: 1),
       body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('public_posts')
-            .orderBy('created_at', descending: true)
-            .snapshots(),
+        stream: _postsStream,
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+          if (snapshot.hasError) {
+            return Center(child: Text("Error: ${snapshot.error}", style: const TextStyle(color: Colors.red)));
+          }
+          if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator(color: Color(0xFFF06292)));
           }
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text("🌍", style: TextStyle(fontSize: 48)),
-                SizedBox(height: 12),
-                Text("No posts yet!", style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
-                SizedBox(height: 6),
-                Text("Be the first to publish a trip.",
-                    style: TextStyle(fontSize: 13, color: Color(0xFF9E9E9E))),
-              ],
-            ));
+          
+          final docs = snapshot.data!.docs;
+          if (docs.isEmpty) {
+            // If we previously had data but now don't (unlikely), still show empty state
+            if (!_hasReceivedData) {
+              return const Center(child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text("🌍", style: TextStyle(fontSize: 48)),
+                  SizedBox(height: 12),
+                  Text("No posts yet!", style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+                  SizedBox(height: 6),
+                  Text("Be the first to publish a trip.",
+                      style: TextStyle(fontSize: 13, color: Color(0xFF9E9E9E))),
+                ],
+              ));
+            }
+            // We had data before, just return an empty container while stream catches up
+            return const SizedBox.shrink();
           }
 
           final allPosts = snapshot.data!.docs;
@@ -259,14 +304,17 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           final publicTrip = ItineraryModel.fromMap(tripData, doc.id);
                           final images = List<String>.from(postData['images'] ?? []);
                           final liked = _likedPostIds.contains(doc.id);
-                          final likes = (postData['likes_count'] ?? 0) as int;
+                          final firestoreLikes = (postData['likes_count'] ?? 0) as int;
+                          final effectiveLikes = _effectiveLikes(doc.id, firestoreLikes);
+                          final displayLikes = effectiveLikes < 0 ? 0 : effectiveLikes;
 
                           return _BlogCard(
+                            key: ValueKey(doc.id),
                             postData: postData, publicTrip: publicTrip,
-                            images: images, liked: liked, likesCount: likes < 0 ? 0 : likes,
+                            images: images, liked: liked, likesCount: displayLikes,
                             onTap: () => _showPostModal(context, doc.id, postData, publicTrip, images),
-                            onLike: () => _toggleLike(doc.id),
-                          ).animate().fade(duration: 400.ms).slideY(begin: 0.06, delay: (index * 50).ms);
+                            onLike: () => _toggleLike(doc.id, displayLikes),
+                          ).animate(key: ValueKey('anim_${doc.id}')).fade(duration: 400.ms).slideY(begin: 0.06, delay: (index * 50).ms);
                         },
                       ),
               ),
@@ -313,22 +361,20 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     Text("${postData['country'] ?? ''} • ${trip.duration}", style: const TextStyle(fontSize: 11, color: Color(0xFF9E9E9E))),
                   ])),
                   // Like button
-                  GestureDetector(
-                    onTap: () { _toggleLike(docId); setModalState(() {}); },
-                    child: Row(children: [
-                      Icon(liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                          color: liked ? const Color(0xFFF06292) : const Color(0xFFBDBDBD), size: 22),
-                      const SizedBox(width: 4),
-                      StreamBuilder<DocumentSnapshot>(
-                        stream: FirebaseFirestore.instance.collection('public_posts').doc(docId).snapshots(),
-                        builder: (_, snap) {
-                          final count = (snap.data?.data() as Map<String, dynamic>?)?['likes_count'] ?? 0;
-                          return Text("$count",
-                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF757575)));
-                        },
-                      ),
-                    ]),
-                  ),
+                  Builder(builder: (_) {
+                    final modalLikes = _effectiveLikes(docId, (postData['likes_count'] ?? 0) as int);
+                    final displayCount = modalLikes < 0 ? 0 : modalLikes;
+                    return GestureDetector(
+                      onTap: () { _toggleLike(docId, displayCount); setModalState(() {}); },
+                      child: Row(children: [
+                        Icon(liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                            color: liked ? const Color(0xFFF06292) : const Color(0xFFBDBDBD), size: 22),
+                        const SizedBox(width: 4),
+                        Text("$displayCount",
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF757575))),
+                      ]),
+                    );
+                  }),
                   const SizedBox(width: 12),
                   // Rating
                   Row(children: [
@@ -503,6 +549,7 @@ class _BlogCard extends StatefulWidget {
   final VoidCallback onLike;
 
   const _BlogCard({
+    super.key,
     required this.postData, required this.publicTrip, required this.images,
     required this.liked, required this.likesCount,
     required this.onTap, required this.onLike,

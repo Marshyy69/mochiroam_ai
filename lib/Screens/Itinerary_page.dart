@@ -7,9 +7,14 @@ import '../models/itinerary_model.dart';
 import 'trip_details_screen.dart';
 import '../widgets/bottom_nav_bar.dart';
 
-class ItineraryPage extends StatelessWidget {
+class ItineraryPage extends StatefulWidget {
   const ItineraryPage({super.key});
 
+  @override
+  State<ItineraryPage> createState() => _ItineraryPageState();
+}
+
+class _ItineraryPageState extends State<ItineraryPage> {
   // Cycles through gradients so each trip card looks unique
   static const List<List<Color>> _cardGradients = [
     [Color(0xFFF06292), Color(0xFFAB47BC)], // pink → purple
@@ -18,6 +23,32 @@ class ItineraryPage extends StatelessWidget {
     [Color(0xFF7986CB), Color(0xFF26C6DA)], // indigo → teal
     [Color(0xFF66BB6A), Color(0xFF26C6DA)], // green → teal
   ];
+
+  late final Stream<QuerySnapshot>? _upcomingStream;
+  late final Stream<QuerySnapshot>? _memoriesStream;
+
+  @override
+  void initState() {
+    super.initState();
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      _upcomingStream = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('itineraries')
+          .snapshots();
+
+      _memoriesStream = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('private_memories')
+          .orderBy('created_at', descending: true)
+          .snapshots();
+    } else {
+      _upcomingStream = null;
+      _memoriesStream = null;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -59,17 +90,16 @@ class ItineraryPage extends StatelessWidget {
           children: [
             // ── TAB 1: Upcoming ──────────────────────────────────────
             StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(user.uid)
-                  .collection('itineraries')
-                  .snapshots(),
+              stream: _upcomingStream,
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                      child: CircularProgressIndicator(color: Color(0xFFF06292)));
+                if (snapshot.hasError) {
+                  return Center(child: Text("Error: ${snapshot.error}", style: const TextStyle(color: Colors.red)));
                 }
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator(color: Color(0xFFF06292)));
+                }
+                final docs = snapshot.data!.docs;
+                if (docs.isEmpty) {
                   return _EmptyState(
                     emoji: "✈️",
                     title: "No upcoming trips!",
@@ -94,18 +124,16 @@ class ItineraryPage extends StatelessWidget {
 
             // ── TAB 2: Memories ──────────────────────────────────────
             StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(user.uid)
-                  .collection('private_memories')
-                  .orderBy('created_at', descending: true)
-                  .snapshots(),
+              stream: _memoriesStream,
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                      child: CircularProgressIndicator(color: Color(0xFFF06292)));
+                if (snapshot.hasError) {
+                  return Center(child: Text("Error: ${snapshot.error}", style: const TextStyle(color: Colors.red)));
                 }
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator(color: Color(0xFFF06292)));
+                }
+                final docs = snapshot.data!.docs;
+                if (docs.isEmpty) {
                   return _EmptyState(
                     emoji: "📔",
                     title: "No memories yet!",

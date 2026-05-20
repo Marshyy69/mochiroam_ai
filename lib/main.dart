@@ -12,6 +12,7 @@ import 'screens/login_screen.dart';
 import 'screens/preferences_screen.dart';
 import 'screens/signup_screen.dart';
 import 'screens/explore_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -157,8 +158,7 @@ class MochiRoamApp extends StatelessWidget {
         ),
       ),
 
-      // Start at login
-      initialRoute: "/login",
+      home: const AuthWrapper(),
       routes: {
         "/login": (context) => const LoginScreen(),
         "/signup": (context) => const SignUpScreen(),
@@ -168,6 +168,32 @@ class MochiRoamApp extends StatelessWidget {
         "/account": (context) => const AccountScreen(),
         '/explore': (context) => const ExploreScreen(),
         "/preferences": (context) => const PreferencesScreen(),
+      },
+    );
+  }
+}
+
+class AuthWrapper extends StatelessWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(color: Color(0xFFF06292)),
+            ),
+          );
+        }
+        
+        if (snapshot.hasData && snapshot.data != null) {
+          return const HomeScreen();
+        }
+        
+        return const LoginScreen();
       },
     );
   }

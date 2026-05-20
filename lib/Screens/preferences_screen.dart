@@ -63,60 +63,78 @@ class _PreferencesScreenState extends State<PreferencesScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) { setState(() => loading = false); return; }
 
-    final doc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .get();
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
 
-    if (doc.exists) {
-      final data = doc.data()!;
-      setState(() {
-        pax = (data['pax'] ?? 1) as int;
-        hasChildren = (data['hasChildren'] ?? false) as bool;
-        childrenCount = (data['childrenCount'] ?? 0) as int;
-        _childAgeController.text = (data['childrenAgeRange'] ?? "") as String;
-        hasElderly = (data['hasElderly'] ?? false) as bool;
-        selectedVibes = List<String>.from(data['tripVibe'] ?? []);
+      if (doc.exists) {
+        final data = doc.data()!;
+        setState(() {
+          pax = (data['pax'] ?? 1) as int;
+          hasChildren = (data['hasChildren'] ?? false) as bool;
+          childrenCount = (data['childrenCount'] ?? 0) as int;
+          _childAgeController.text = (data['childrenAgeRange'] ?? "") as String;
+          hasElderly = (data['hasElderly'] ?? false) as bool;
+          selectedVibes = List<String>.from(data['tripVibe'] ?? []);
 
-        String lb = (data['budget'] ?? budgetOptions[1]) as String;
-        budget = budgetOptions.contains(lb) ? lb : budgetOptions[1];
+          String lb = (data['budget'] ?? budgetOptions[1]) as String;
+          budget = budgetOptions.contains(lb) ? lb : budgetOptions[1];
 
-        String la = (data['accommodation'] ?? accommodationOptions[0]) as String;
-        accommodation = accommodationOptions.contains(la) ? la : accommodationOptions[0];
-      });
-    } else {
+          String la = (data['accommodation'] ?? accommodationOptions[0]) as String;
+          accommodation = accommodationOptions.contains(la) ? la : accommodationOptions[0];
+        });
+      } else {
+        setState(() => selectedVibes = ["Relaxing 💆‍♀️"]);
+      }
+    } catch (e) {
       setState(() => selectedVibes = ["Relaxing 💆‍♀️"]);
+    } finally {
+      if (mounted) {
+        setState(() => loading = false);
+      }
     }
-    setState(() => loading = false);
   }
 
   Future<void> _savePrefs() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .set({
-      'pax': pax,
-      'hasChildren': hasChildren,
-      'childrenCount': hasChildren ? childrenCount : 0,
-      'childrenAgeRange': hasChildren ? _childAgeController.text : "",
-      'hasElderly': hasElderly,
-      'tripVibe': selectedVibes.isEmpty ? ["Standard"] : selectedVibes,
-      'budget': budget,
-      'accommodation': accommodation,
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .set({
+        'pax': pax,
+        'hasChildren': hasChildren,
+        'childrenCount': hasChildren ? childrenCount : 0,
+        'childrenAgeRange': hasChildren ? _childAgeController.text : "",
+        'hasElderly': hasElderly,
+        'tripVibe': selectedVibes.isEmpty ? ["Standard"] : selectedVibes,
+        'budget': budget,
+        'accommodation': accommodation,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
 
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: const Text('Preferences saved! ✅'),
-      backgroundColor: const Color(0xFFF06292),
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-    ));
-    Navigator.pop(context);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('Preferences saved! ✅'),
+        backgroundColor: const Color(0xFFF06292),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ));
+      Navigator.pop(context);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Failed to save preferences: $e'),
+          backgroundColor: const Color(0xFFC2185B),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ));
+      }
+    }
   }
 
   @override

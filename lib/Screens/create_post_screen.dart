@@ -127,17 +127,38 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
     try {
       final user = FirebaseAuth.instance.currentUser!;
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get();
 
-      final imageUrls = await _uploadImages();
+      // Fetch user profile with a timeout so it never hangs forever
+      String authorName = "Traveler";
+      String authorAvatar = "🍡";
+      try {
+        final userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get(const GetOptions(source: Source.serverAndCache))
+            .timeout(const Duration(seconds: 10));
+        if (userDoc.exists) {
+          authorName = userDoc.data()?['username'] ?? "Traveler";
+          authorAvatar = userDoc.data()?['avatar'] ?? "🍡";
+        }
+      } catch (_) {
+        // Use defaults if user doc fetch fails or times out
+        debugPrint("Could not fetch user profile, using defaults.");
+      }
+
+      // Upload images with a timeout
+      List<String> imageUrls = [];
+      try {
+        imageUrls = await _uploadImages()
+            .timeout(const Duration(seconds: 30));
+      } catch (_) {
+        debugPrint("Image upload timed out or failed, continuing without images.");
+      }
 
       final newPost = PostModel(
         authorUid: user.uid,
-        authorName: userDoc.data()?['username'] ?? "Traveler",
-        authorAvatar: userDoc.data()?['avatar'] ?? "🍡",
+        authorName: authorName,
+        authorAvatar: authorAvatar,
         country: widget.trip.country,
         title: _titleController.text.trim(),
         description: _reviewController.text.trim(),
@@ -149,8 +170,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         images: imageUrls,
       );
 
-      // Always save to private memories
-      await FirebaseFirestore.instance
+      // Fire-and-forget writes to avoid blocking the UI if offline
+      FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .collection('private_memories')
@@ -158,14 +179,14 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
       // Push to community feed if public
       if (_isPublic) {
-        await FirebaseFirestore.instance
+        FirebaseFirestore.instance
             .collection('public_posts')
             .add(newPost.toMap());
       }
 
       // Delete from active itineraries
       if (widget.trip.id != null) {
-        await FirebaseFirestore.instance
+        FirebaseFirestore.instance
             .collection('users')
             .doc(user.uid)
             .collection('itineraries')
@@ -174,8 +195,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       }
 
       if (mounted) {
-        Navigator.pop(context);
-        Navigator.pop(context);
+        Navigator.pop(context); // Pop CreatePostScreen
+        Navigator.pop(context); // Pop TripDetailsScreen
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(_isPublic
               ? "Trip archived & published! 🌍"
@@ -188,10 +209,12 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _isUploading = false);
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text("Error: $e")));
       }
+    } finally {
+      // ALWAYS stop the spinner, no matter what happens
+      if (mounted) setState(() => _isUploading = false);
     }
   }
 
