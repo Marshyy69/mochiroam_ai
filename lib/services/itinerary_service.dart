@@ -1,54 +1,52 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/itinerary_model.dart';
 
 class ItineraryService {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // 1. Save a new Trip — returns the Firestore document ID
+  // 1. Save a new Trip — returns the Supabase ID
   Future<String?> saveTrip(ItineraryModel trip) async {
-    final user = _auth.currentUser;
+    final user = Supabase.instance.client.auth.currentUser;
     if (user == null) return null;
 
-    final docRef = await _db
-        .collection('users')
-        .doc(user.uid)
-        .collection('itineraries')
-        .add(trip.toMap());
+    final data = trip.toMap()..['user_id'] = user.id;
 
-    return docRef.id;
+    final response = await Supabase.instance.client
+        .from('itineraries')
+        .insert(data)
+        .select('id')
+        .single();
+
+    return response['id'] as String?;
   }
 
   // 2. Fetch all Trips (Stream)
   Stream<List<ItineraryModel>> getTripsStream({bool isCompleted = false}) {
-    final user = _auth.currentUser;
+    final user = Supabase.instance.client.auth.currentUser;
     if (user == null) return const Stream.empty();
 
-    return _db
-        .collection('users')
-        .doc(user.uid)
-        .collection('itineraries')
-        .where('status', isEqualTo: isCompleted ? 'completed' : 'upcoming')
-        .orderBy('created_at', descending: true)
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => ItineraryModel.fromMap(doc.data(), doc.id))
+    return Supabase.instance.client
+        .from('itineraries')
+        .stream(primaryKey: ['id'])
+        .order('created_at', ascending: false)
+        .map((data) => data
+            .where((doc) => doc['user_id'] == user.id && doc['status'] == (isCompleted ? 'completed' : 'upcoming'))
+            .map((doc) => ItineraryModel.fromMap(doc, doc['id'] as String))
             .toList());
   }
 
   // 3. Update Activity Status (Checkbox)
   Future<void> updateActivityStatus(String tripId, List<DaySchedule> days) async {
-    final user = _auth.currentUser;
+    final user = Supabase.instance.client.auth.currentUser;
     if (user == null) return;
 
-    await _db
-        .collection('users')
-        .doc(user.uid)
-        .collection('itineraries')
-        .doc(tripId)
+    await Supabase.instance.client
+        .from('itineraries')
         .update({
-      'trip_data.days': days.map((d) => d.toMap()).toList(),
-    });
+      'trip_data': {
+        'days': days.map((d) => d.toMap()).toList(),
+      }
+    })
+        .eq('id', tripId)
+        .eq('user_id', user.id);
   }
 }

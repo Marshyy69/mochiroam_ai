@@ -1,8 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/itinerary_model.dart';
 import '../models/post_model.dart';
@@ -126,20 +125,21 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     setState(() => _isUploading = true);
 
     try {
-      final user = FirebaseAuth.instance.currentUser!;
+      final user = Supabase.instance.client.auth.currentUser!;
 
       // Fetch user profile with a timeout so it never hangs forever
       String authorName = "Traveler";
       String authorAvatar = "🍡";
       try {
-        final userDoc = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .get(const GetOptions(source: Source.serverAndCache))
+        final userDoc = await Supabase.instance.client
+            .from('users')
+            .select()
+            .eq('id', user.id)
+            .maybeSingle()
             .timeout(const Duration(seconds: 10));
-        if (userDoc.exists) {
-          authorName = userDoc.data()?['username'] ?? "Traveler";
-          authorAvatar = userDoc.data()?['avatar'] ?? "🍡";
+        if (userDoc != null) {
+          authorName = userDoc['username'] ?? "Traveler";
+          authorAvatar = userDoc['avatar'] ?? "🍡";
         }
       } catch (_) {
         // Use defaults if user doc fetch fails or times out
@@ -156,7 +156,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       }
 
       final newPost = PostModel(
-        authorUid: user.uid,
+        authorUid: user.id,
         authorName: authorName,
         authorAvatar: authorAvatar,
         country: widget.trip.country,
@@ -170,28 +170,24 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         images: imageUrls,
       );
 
-      // Fire-and-forget writes to avoid blocking the UI if offline
-      FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('private_memories')
-          .add(newPost.toMap());
+      // Await writes to catch errors
+      await Supabase.instance.client
+          .from('private_memories')
+          .insert(newPost.toMap()..['user_id'] = user.id);
 
       // Push to community feed if public
       if (_isPublic) {
-        FirebaseFirestore.instance
-            .collection('public_posts')
-            .add(newPost.toMap());
+        await Supabase.instance.client
+            .from('public_posts')
+            .insert(newPost.toMap());
       }
 
       // Delete from active itineraries
       if (widget.trip.id != null) {
-        FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .collection('itineraries')
-            .doc(widget.trip.id)
-            .delete();
+        await Supabase.instance.client
+            .from('itineraries')
+            .delete()
+            .eq('id', widget.trip.id!);
       }
 
       if (mounted) {

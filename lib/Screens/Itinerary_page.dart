@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../models/itinerary_model.dart';
@@ -24,26 +23,24 @@ class _ItineraryPageState extends State<ItineraryPage> {
     [Color(0xFF66BB6A), Color(0xFF26C6DA)], // green → teal
   ];
 
-  late final Stream<QuerySnapshot>? _upcomingStream;
-  late final Stream<QuerySnapshot>? _memoriesStream;
+  late final Stream<List<Map<String, dynamic>>>? _upcomingStream;
+  late final Stream<List<Map<String, dynamic>>>? _memoriesStream;
 
   @override
   void initState() {
     super.initState();
-    final user = FirebaseAuth.instance.currentUser;
+    final user = Supabase.instance.client.auth.currentUser;
     if (user != null) {
-      _upcomingStream = FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('itineraries')
-          .snapshots();
+      _upcomingStream = Supabase.instance.client
+          .from('itineraries')
+          .stream(primaryKey: ['id'])
+          .eq('user_id', user.id);
 
-      _memoriesStream = FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('private_memories')
-          .orderBy('created_at', descending: true)
-          .snapshots();
+      _memoriesStream = Supabase.instance.client
+          .from('private_memories')
+          .stream(primaryKey: ['id'])
+          .eq('user_id', user.id)
+          .order('created_at', ascending: false);
     } else {
       _upcomingStream = null;
       _memoriesStream = null;
@@ -52,7 +49,7 @@ class _ItineraryPageState extends State<ItineraryPage> {
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
+    final user = Supabase.instance.client.auth.currentUser;
 
     if (user == null) {
       return const Scaffold(
@@ -89,7 +86,7 @@ class _ItineraryPageState extends State<ItineraryPage> {
         body: TabBarView(
           children: [
             // ── TAB 1: Upcoming ──────────────────────────────────────
-            StreamBuilder<QuerySnapshot>(
+            StreamBuilder<List<Map<String, dynamic>>>(
               stream: _upcomingStream,
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
@@ -98,7 +95,7 @@ class _ItineraryPageState extends State<ItineraryPage> {
                 if (!snapshot.hasData) {
                   return const Center(child: CircularProgressIndicator(color: Color(0xFFF06292)));
                 }
-                final docs = snapshot.data!.docs;
+                final docs = snapshot.data!;
                 if (docs.isEmpty) {
                   return _EmptyState(
                     emoji: "✈️",
@@ -106,7 +103,7 @@ class _ItineraryPageState extends State<ItineraryPage> {
                     subtitle: "Ask Mochi to plan your next adventure.",
                   );
                 }
-                final trips = snapshot.data!.docs;
+                final trips = snapshot.data!;
                 return ListView.builder(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
                   itemCount: trips.length,
@@ -123,7 +120,7 @@ class _ItineraryPageState extends State<ItineraryPage> {
             ),
 
             // ── TAB 2: Memories ──────────────────────────────────────
-            StreamBuilder<QuerySnapshot>(
+            StreamBuilder<List<Map<String, dynamic>>>(
               stream: _memoriesStream,
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
@@ -132,7 +129,7 @@ class _ItineraryPageState extends State<ItineraryPage> {
                 if (!snapshot.hasData) {
                   return const Center(child: CircularProgressIndicator(color: Color(0xFFF06292)));
                 }
-                final docs = snapshot.data!.docs;
+                final docs = snapshot.data!;
                 if (docs.isEmpty) {
                   return _EmptyState(
                     emoji: "📔",
@@ -141,7 +138,7 @@ class _ItineraryPageState extends State<ItineraryPage> {
                         "Review an upcoming trip to archive it here.",
                   );
                 }
-                final memories = snapshot.data!.docs;
+                final memories = snapshot.data!;
                 return ListView.builder(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
                   itemCount: memories.length,
@@ -163,13 +160,14 @@ class _ItineraryPageState extends State<ItineraryPage> {
 
 // ── Active Trip Card ─────────────────────────────────────────────────────────
 class _ActiveTripCard extends StatelessWidget {
-  final DocumentSnapshot doc;
+  final Map<String, dynamic> doc;
   final List<Color> gradient;
   const _ActiveTripCard({required this.doc, required this.gradient});
 
   @override
   Widget build(BuildContext context) {
-    final data = doc.data() as Map<String, dynamic>;
+    final data = doc;
+    final docId = doc['id'] as String;
     final tripName = data['trip_name'] ?? "Unknown Trip";
     final duration = data['duration'] ?? "? Days";
     final tags = List<String>.from(data['tags'] ?? []);
@@ -198,7 +196,7 @@ class _ActiveTripCard extends StatelessWidget {
 
     return GestureDetector(
       onTap: () {
-        final trip = ItineraryModel.fromMap(data, doc.id);
+        final trip = ItineraryModel.fromMap(data, docId);
         Navigator.push(context,
             MaterialPageRoute(builder: (_) => TripDetailsScreen(trip: trip)));
       },
@@ -225,7 +223,7 @@ class _ActiveTripCard extends StatelessWidget {
               child: Stack(
                 children: [
                   Hero(
-                    tag: doc.id,
+                    tag: docId,
                     child: Image.network(imageUrl,
                         height: 160,
                         width: double.infinity,
@@ -393,13 +391,13 @@ class _ActiveTripCard extends StatelessWidget {
 
 // ── Memory Card ──────────────────────────────────────────────────────────────
 class _MemoryCard extends StatelessWidget {
-  final DocumentSnapshot doc;
+  final Map<String, dynamic> doc;
   const _MemoryCard({required this.doc});
 
   @override
   Widget build(BuildContext context) {
-    final postData = doc.data() as Map<String, dynamic>;
-    final tripData = postData['itinerary_data'] as Map<String, dynamic>;
+    final postData = doc;
+    final tripData = postData['itinerary_data'] as Map<String, dynamic>? ?? {};
     final images = List<String>.from(postData['images'] ?? []);
     final coverImage = images.isNotEmpty
         ? images.first

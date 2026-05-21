@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ItineraryModel {
   String? id; // Firestore Document ID
@@ -44,12 +43,10 @@ class ItineraryModel {
       rawDays = map['days'];
     }
 
-    // 🛡️ LOGIC: Handle Dates safely (Firestore Timestamp vs String)
+    // 🛡️ LOGIC: Handle Dates safely (Supabase ISO-8601 vs String)
     DateTime parsedDate = DateTime.now();
     if (map['created_at'] != null) {
-      if (map['created_at'] is Timestamp) {
-        parsedDate = (map['created_at'] as Timestamp).toDate();
-      } else if (map['created_at'] is String) {
+      if (map['created_at'] is String) {
         parsedDate = DateTime.tryParse(map['created_at']) ?? DateTime.now();
       }
     }
@@ -84,7 +81,7 @@ class ItineraryModel {
       'is_halal': isHalal,
       'rating': rating,
       'status': status,
-      'created_at': Timestamp.fromDate(createdAt), // Save as Timestamp
+      'created_at': createdAt.toIso8601String(), // Save as ISO-8601 String
       'trip_data': {
         'days': days.map((d) => d.toMap()).toList(),
       },

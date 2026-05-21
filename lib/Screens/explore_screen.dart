@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../models/itinerary_model.dart';
@@ -27,15 +26,15 @@ class _ExploreScreenState extends State<ExploreScreen> {
   Timer? _debounceTimer;
   bool _hasReceivedData = false; // Track if we've ever received data from the stream
 
-  late final Stream<QuerySnapshot> _postsStream;
+  late final Stream<List<Map<String, dynamic>>> _postsStream;
 
   @override
   void initState() {
     super.initState();
-    _postsStream = FirebaseFirestore.instance
-        .collection('public_posts')
-        .orderBy('created_at', descending: true)
-        .snapshots(includeMetadataChanges: true);
+    _postsStream = Supabase.instance.client
+        .from('public_posts')
+        .stream(primaryKey: ['id'])
+        .order('created_at', ascending: false);
     _loadLikedPosts();
   }
 
@@ -52,9 +51,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
     return _likesCountOverrides[postId] ?? firestoreCount;
   }
 
-  /// Loads all liked post IDs for the current user in a SINGLE batch query.
   Future<void> _loadLikedPosts() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = Supabase.instance.client.auth.currentUser?.id;
     if (uid == null) return;
     
     // Clear cache if user changed
@@ -64,64 +62,52 @@ class _ExploreScreenState extends State<ExploreScreen> {
       _lastUid = uid;
     }
 
-    try {
-      // Single collectionGroup query using 'userId' field
-      final likesSnap = await FirebaseFirestore.instance
-          .collectionGroup('likes')
-          .where('userId', isEqualTo: uid)
-          .get();
-      final Set<String> likedIds = {};
-      for (var doc in likesSnap.docs) {
-        // Parent path: public_posts/{postId}/likes/{uid}
-        likedIds.add(doc.reference.parent.parent!.id);
-      }
-      if (mounted) {
-        setState(() {
-          _likedPostIds.addAll(likedIds);
-        });
-      }
-    } catch (_) {
-      // Fallback commented out to prevent flooding Firestore with requests
-      // when permission is denied or the index is missing. 
-      // The user must update their Firestore security rules instead.
-      debugPrint("Failed to load likes. Check Firestore Security Rules.");
-    }
+    // We no longer do a heavy pre-fetch of all likes on startup.
+    // The UI will rely on the optimistic local cache (_likedPostIds) 
+    // during the active session. This prevents the app from hanging 
+    // or throwing TimeoutExceptions on slow/flaky connections.
   }
 
-  /// Toggles like state with optimistic UI and proper Firestore persistence.
   Future<void> _toggleLike(String postId, int currentDisplayedCount) async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = Supabase.instance.client.auth.currentUser?.id;
     if (uid == null) return;
-    final ref = FirebaseFirestore.instance.collection('public_posts').doc(postId);
-    final likeRef = ref.collection('likes').doc(uid);
 
     if (_likedPostIds.contains(postId)) {
-      // Optimistic: toggle icon AND count immediately
       final newCount = (currentDisplayedCount - 1).clamp(0, 999999);
       setState(() {
         _likedPostIds.remove(postId);
         _likesCountOverrides[postId] = newCount;
       });
-      // Persist to Firestore (fire-and-forget), then clear override when stream catches up
-      likeRef.delete();
-      ref.update({'likes_count': FieldValue.increment(-1)}).then((_) {
-        // Clear override after Firestore confirms — stream will provide fresh data
-        if (mounted) setState(() => _likesCountOverrides.remove(postId));
-      });
+      try {
+        await Supabase.instance.client.from('likes').delete().match({'post_id': postId, 'user_id': uid});
+        await Supabase.instance.client.rpc('decrement_likes', params: {'post_id': postId});
+      } catch (_) {
+        // Revert on error
+        if (mounted) {
+          setState(() {
+            _likedPostIds.add(postId);
+            _likesCountOverrides[postId] = currentDisplayedCount;
+          });
+        }
+      }
     } else {
       final newCount = currentDisplayedCount + 1;
       setState(() {
         _likedPostIds.add(postId);
         _likesCountOverrides[postId] = newCount;
       });
-      // Fire-and-forget write with userId field for future queries
-      likeRef.set({
-        'liked_at': FieldValue.serverTimestamp(),
-        'userId': uid,
-      });
-      ref.update({'likes_count': FieldValue.increment(1)}).then((_) {
-        if (mounted) setState(() => _likesCountOverrides.remove(postId));
-      });
+      try {
+        await Supabase.instance.client.from('likes').insert({'post_id': postId, 'user_id': uid});
+        await Supabase.instance.client.rpc('increment_likes', params: {'post_id': postId});
+      } catch (_) {
+        // Revert on error
+        if (mounted) {
+          setState(() {
+            _likedPostIds.remove(postId);
+            _likesCountOverrides[postId] = currentDisplayedCount;
+          });
+        }
+      }
     }
   }
 
@@ -134,16 +120,17 @@ class _ExploreScreenState extends State<ExploreScreen> {
   }
 
   Future<void> _copyTrip(BuildContext ctx, ItineraryModel trip) async {
-    final user = FirebaseAuth.instance.currentUser;
+    final user = Supabase.instance.client.auth.currentUser;
     if (user == null) return;
     final data = trip.toMap();
     final copy = ItineraryModel.fromMap(data, '');
-    copy.userId = user.uid;
+    copy.userId = user.id;
     copy.createdAt = DateTime.now();
     copy.status = 'upcoming';
-    await FirebaseFirestore.instance
-        .collection('users').doc(user.uid)
-        .collection('itineraries').add(copy.toMap());
+    // Fire-and-forget — don't block the UI
+    Supabase.instance.client
+        .from('itineraries').insert(copy.toMap())
+        .then((_) {}).catchError((_) => null);
     if (ctx.mounted) {
       ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
         content: Text("✨ '${trip.tripName}' saved to your trips!"),
@@ -166,19 +153,19 @@ class _ExploreScreenState extends State<ExploreScreen> {
     return fields.any((f) => f.toString().toLowerCase().contains(q));
   }
 
-  List<QueryDocumentSnapshot> _sortPosts(List<QueryDocumentSnapshot> posts) {
-    final sorted = List<QueryDocumentSnapshot>.from(posts);
+  List<Map<String, dynamic>> _sortPosts(List<Map<String, dynamic>> posts) {
+    final sorted = List<Map<String, dynamic>>.from(posts);
     switch (_sortBy) {
       case 'Highest Rated':
-        sorted.sort((a, b) => ((b.data() as Map)['rating'] ?? 0)
-            .compareTo((a.data() as Map)['rating'] ?? 0));
+        sorted.sort((a, b) => ((b['rating'] ?? 0) as num)
+            .compareTo((a['rating'] ?? 0) as num));
         break;
       case 'Most Liked':
-        sorted.sort((a, b) => ((b.data() as Map)['likes_count'] ?? 0)
-            .compareTo((a.data() as Map)['likes_count'] ?? 0));
+        sorted.sort((a, b) => ((b['likes_count'] ?? 0) as num)
+            .compareTo((a['likes_count'] ?? 0) as num));
         break;
       default:
-        break; // Already sorted by created_at from Firestore
+        break; // Already sorted by created_at from Supabase
     }
     return sorted;
   }
@@ -194,7 +181,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
         backgroundColor: Colors.white, elevation: 0, centerTitle: true,
       ),
       bottomNavigationBar: const BottomNavBar(currentIndex: 1),
-      body: StreamBuilder<QuerySnapshot>(
+      body: StreamBuilder<List<Map<String, dynamic>>>(
         stream: _postsStream,
         builder: (context, snapshot) {
           if (snapshot.hasError) {
@@ -204,7 +191,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
             return const Center(child: CircularProgressIndicator(color: Color(0xFFF06292)));
           }
           
-          final docs = snapshot.data!.docs;
+          final docs = snapshot.data!;
           if (docs.isEmpty) {
             // If we previously had data but now don't (unlikely), still show empty state
             if (!_hasReceivedData) {
@@ -224,8 +211,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
             return const SizedBox.shrink();
           }
 
-          final allPosts = snapshot.data!.docs;
-          final filtered = allPosts.where((doc) => _matchesSearch(doc.data() as Map<String, dynamic>)).toList();
+          final allPosts = snapshot.data!;
+          final filtered = allPosts.where((doc) => _matchesSearch(doc)).toList();
           final sorted = _sortPosts(filtered);
 
           return Column(
@@ -299,22 +286,23 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         itemCount: sorted.length,
                         itemBuilder: (context, index) {
                           final doc = sorted[index];
-                          final postData = doc.data() as Map<String, dynamic>;
-                          final tripData = postData['itinerary_data'] as Map<String, dynamic>;
-                          final publicTrip = ItineraryModel.fromMap(tripData, doc.id);
+                          final postData = doc;
+                          final tripData = postData['itinerary_data'] as Map<String, dynamic>? ?? {};
+                          final docId = doc['id'] as String;
+                          final publicTrip = ItineraryModel.fromMap(tripData, docId);
                           final images = List<String>.from(postData['images'] ?? []);
-                          final liked = _likedPostIds.contains(doc.id);
+                          final liked = _likedPostIds.contains(docId);
                           final firestoreLikes = (postData['likes_count'] ?? 0) as int;
-                          final effectiveLikes = _effectiveLikes(doc.id, firestoreLikes);
+                          final effectiveLikes = _effectiveLikes(docId, firestoreLikes);
                           final displayLikes = effectiveLikes < 0 ? 0 : effectiveLikes;
 
                           return _BlogCard(
-                            key: ValueKey(doc.id),
+                            key: ValueKey(docId),
                             postData: postData, publicTrip: publicTrip,
                             images: images, liked: liked, likesCount: displayLikes,
-                            onTap: () => _showPostModal(context, doc.id, postData, publicTrip, images),
-                            onLike: () => _toggleLike(doc.id, displayLikes),
-                          ).animate(key: ValueKey('anim_${doc.id}')).fade(duration: 400.ms).slideY(begin: 0.06, delay: (index * 50).ms);
+                            onTap: () => _showPostModal(context, docId, postData, publicTrip, images),
+                            onLike: () => _toggleLike(docId, displayLikes),
+                          ).animate(key: ValueKey('anim_$docId')).fade(duration: 400.ms).slideY(begin: 0.06, delay: (index * 50).ms);
                         },
                       ),
               ),

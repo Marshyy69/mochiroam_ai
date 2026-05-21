@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:dash_chat_2/dash_chat_2.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 
 import '../services/gemini_service.dart';
@@ -22,7 +22,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final ItineraryService _itineraryService = ItineraryService();
 
   final ChatUser _currentUser = ChatUser(
-    id: FirebaseAuth.instance.currentUser?.uid ?? 'user',
+    id: Supabase.instance.client.auth.currentUser?.id ?? 'user',
     firstName: 'You',
   );
 

@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'itinerary_model.dart';
 
 class PostModel {
@@ -45,7 +44,7 @@ class PostModel {
       'highlights': highlights,
       'rating': rating,
       'likes_count': likesCount,
-      'created_at': Timestamp.fromDate(createdAt),
+      'created_at': createdAt.toIso8601String(),
       'itinerary_data': itinerary.toMap(), // 📦 Packs the whole trip into the post!
       'is_public': isPublic, // 🆕 Add to map
       'images': images

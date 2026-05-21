@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../widgets/bottom_nav_bar.dart';
 
@@ -12,7 +11,7 @@ class AccountScreen extends StatefulWidget {
 }
 
 class _AccountScreenState extends State<AccountScreen> {
-  final user = FirebaseAuth.instance.currentUser;
+  final user = Supabase.instance.client.auth.currentUser;
   bool _isHalal = false;
   bool _isLoading = true;
   String _appVersion = "";
@@ -36,33 +35,31 @@ class _AccountScreenState extends State<AccountScreen> {
     }
 
     try {
-      // Load preferences and trip counts in parallel
-      final results = await Future.wait([
-        FirebaseFirestore.instance
-            .collection('users')
-            .doc(user!.uid)
-            .get(),
-        FirebaseFirestore.instance
-            .collection('users')
-            .doc(user!.uid)
-            .collection('itineraries')
-            .get(),
-        FirebaseFirestore.instance
-            .collection('users')
-            .doc(user!.uid)
-            .collection('private_memories')
-            .get(),
+      final results = await Future.wait<dynamic>([
+        Supabase.instance.client
+            .from('users')
+            .select()
+            .eq('id', user!.id)
+            .single(),
+        Supabase.instance.client
+            .from('itineraries')
+            .select('id')
+            .eq('user_id', user!.id),
+        Supabase.instance.client
+            .from('private_memories')
+            .select('id')
+            .eq('user_id', user!.id),
       ]);
 
-      final doc = results[0] as DocumentSnapshot;
-      final upcoming = results[1] as QuerySnapshot;
-      final memories = results[2] as QuerySnapshot;
+      final doc = results[0] as Map<String, dynamic>?;
+      final upcoming = results[1] as List<dynamic>?;
+      final memories = results[2] as List<dynamic>?;
 
       if (mounted) {
         setState(() {
-          _isHalal = doc.data() != null ? ((doc.data() as Map<String, dynamic>)['is_halal'] ?? false) : false;
-          _upcomingCount = upcoming.docs.length;
-          _memoriesCount = memories.docs.length;
+          _isHalal = doc != null ? (doc['is_halal'] ?? false) : false;
+          _upcomingCount = upcoming?.length ?? 0;
+          _memoriesCount = memories?.length ?? 0;
           _isLoading = false;
         });
       }
@@ -74,10 +71,12 @@ class _AccountScreenState extends State<AccountScreen> {
   Future<void> _toggleHalal(bool value) async {
     setState(() => _isHalal = value);
     if (user != null) {
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user!.uid)
-          .update({'is_halal': value});
+      // Fire-and-forget — don't block UI
+      Supabase.instance.client
+          .from('users')
+          .update({'is_halal': value})
+          .eq('id', user!.id)
+          .catchError((_) {});
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(value ? "Halal Mode ON 🕌" : "Halal Mode OFF"),
@@ -140,18 +139,18 @@ class _AccountScreenState extends State<AccountScreen> {
               child: Column(
                 children: [
                   // ── Profile Hero Card ─────────────────────────────
-                  StreamBuilder<DocumentSnapshot>(
+                  StreamBuilder<List<Map<String, dynamic>>>(
                     stream: user != null
-                        ? FirebaseFirestore.instance
-                            .collection('users')
-                            .doc(user!.uid)
-                            .snapshots()
+                        ? Supabase.instance.client
+                            .from('users')
+                            .stream(primaryKey: ['id'])
+                            .eq('id', user!.id)
                         : null,
                     builder: (context, snapshot) {
                       if (snapshot.hasData &&
-                          snapshot.data!.exists) {
-                        final data = snapshot.data!.data()
-                            as Map<String, dynamic>;
+                          snapshot.data != null &&
+                          snapshot.data!.isNotEmpty) {
+                        final data = snapshot.data!.first;
                         avatar = data['avatar'] ?? "🍡";
                       }
                       return Container(
@@ -260,7 +259,7 @@ class _AccountScreenState extends State<AccountScreen> {
                           subtitle: "Prioritize halal food options",
                           trailing: Switch(
                             value: _isHalal,
-                            activeColor: Colors.green,
+                            activeTrackColor: Colors.green,
                             onChanged: _toggleHalal,
                           ),
                         ),
@@ -286,7 +285,7 @@ class _AccountScreenState extends State<AccountScreen> {
                           trailing: const Icon(Icons.arrow_forward_ios,
                               size: 14, color: Color(0xFFBDBDBD)),
                           onTap: () async {
-                            await FirebaseAuth.instance.signOut();
+                            await Supabase.instance.client.auth.signOut();
                             if (!context.mounted) return;
                             Navigator.of(context)
                                 .pushNamedAndRemoveUntil(

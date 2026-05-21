@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -17,16 +17,26 @@ class _SignUpScreenState extends State<SignUpScreen> {
   Future<void> _register() async {
     setState(() => _loading = true);
     try {
-      await FirebaseAuth.instance.createUserWithEmailAndPassword(
+      final res = await Supabase.instance.client.auth.signUp(
         email: _email.text.trim(),
         password: _password.text.trim(),
       );
+      
       if (!mounted) return;
-      Navigator.pushReplacementNamed(context, "/home");
-    } on FirebaseAuthException catch (e) {
-      String msg = e.message ?? "Sign up failed";
-      if (e.code == "weak-password") msg = "Password must be at least 6 characters.";
-      if (e.code == "email-already-in-use") msg = "Email already registered.";
+      
+      // If user is returned, sign up was successful
+      if (res.user != null) {
+        // Insert initial user profile record in Supabase users table
+        await Supabase.instance.client.from('users').upsert({
+          'id': res.user!.id,
+          'username': _email.text.trim().split('@')[0],
+          'avatar': '🍡',
+        }).catchError((_) {});
+
+        Navigator.pushReplacementNamed(context, "/home");
+      }
+    } on AuthException catch (e) {
+      String msg = e.message;
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(msg),

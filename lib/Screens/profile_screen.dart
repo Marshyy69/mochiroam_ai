@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -10,7 +9,7 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  final User? user = FirebaseAuth.instance.currentUser;
+  final User? user = Supabase.instance.client.auth.currentUser;
   final TextEditingController _nameController = TextEditingController();
 
   String _selectedAvatar = "🍡";
@@ -38,28 +37,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _loadProfile() async {
     if (user == null) return;
     try {
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user!.uid)
-          .get();
-      final trips = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user!.uid)
-          .collection('itineraries')
-          .get();
+      final results = await Future.wait<dynamic>([
+        Supabase.instance.client
+            .from('users')
+            .select()
+            .eq('id', user!.id)
+            .single(),
+        Supabase.instance.client
+            .from('itineraries')
+            .select()
+            .eq('user_id', user!.id),
+      ]);
+
+      final doc = results[0] as Map<String, dynamic>?;
+      final trips = results[1] as List<dynamic>? ?? [];
 
       int upcoming = 0, completed = 0;
-      for (var doc in trips.docs) {
-        final d = doc.data();
-        if (d['status'] == 'completed') completed++; else upcoming++;
+      for (var d in trips) {
+        if (d['status'] == 'completed') {
+          completed++;
+        } else {
+          upcoming++;
+        }
       }
 
       if (mounted) {
         setState(() {
-          _nameController.text =
-              userDoc.exists ? (userDoc['username'] ?? "Traveler") : "Traveler";
-          _selectedAvatar =
-              userDoc.exists ? (userDoc['avatar'] ?? "🍡") : "🍡";
+          _nameController.text = doc != null ? (doc['username'] ?? "Traveler") : "Traveler";
+          _selectedAvatar = doc != null ? (doc['avatar'] ?? "🍡") : "🍡";
           _upcomingTrips = upcoming;
           _completedTrips = completed;
           _isLoading = false;
@@ -74,15 +79,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (user == null) return;
     setState(() => _isSaving = true);
     try {
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user!.uid)
-          .set({
+      await Supabase.instance.client
+          .from('users')
+          .upsert({
+        'id': user!.id,
         'username': _nameController.text.trim(),
         'avatar': _selectedAvatar,
-        'updated_at': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-      await user!.updateDisplayName(_nameController.text.trim());
+        'updated_at': DateTime.now().toIso8601String(),
+      });
+      // Update Auth metadata if needed
+      await Supabase.instance.client.auth.updateUser(
+        UserAttributes(data: {'username': _nameController.text.trim()})
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: const Text("Profile updated! ✅"),

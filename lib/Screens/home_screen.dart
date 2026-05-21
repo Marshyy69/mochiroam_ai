@@ -1,52 +1,58 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../widgets/bottom_nav_bar.dart';
 import 'profile_screen.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
-  // Each destination: country, emoji, prompt, and a gradient for the card
-  static const List<Map<String, dynamic>> suggestions = [
-    {
-      "country": "Japan",
-      "emoji": "🇯🇵",
-      "days": "7 days",
-      "prompt": "Plan a trip to Japan",
-      "gradientStart": Color(0xFFF48FB1),
-      "gradientEnd": Color(0xFFF06292),
-    },
-    {
-      "country": "South Korea",
-      "emoji": "🇰🇷",
-      "days": "5 days",
-      "prompt": "Plan a trip to South Korea",
-      "gradientStart": Color(0xFF80DEEA),
-      "gradientEnd": Color(0xFF26C6DA),
-    },
-    {
-      "country": "Thailand",
-      "emoji": "🇹🇭",
-      "days": "6 days",
-      "prompt": "Plan a trip to Thailand",
-      "gradientStart": Color(0xFFA5D6A7),
-      "gradientEnd": Color(0xFF66BB6A),
-    },
-    {
-      "country": "Australia",
-      "emoji": "🇦🇺",
-      "days": "10 days",
-      "prompt": "Plan a trip to Australia",
-      "gradientStart": Color(0xFFFFCC80),
-      "gradientEnd": Color(0xFFFFA726),
-    },
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  // Large pool of trending destinations
+  static const List<Map<String, dynamic>> _allDestinations = [
+    {"country": "Japan", "emoji": "🇯🇵", "days": "7 days", "gradientStart": Color(0xFFF48FB1), "gradientEnd": Color(0xFFF06292)},
+    {"country": "South Korea", "emoji": "🇰🇷", "days": "5 days", "gradientStart": Color(0xFF80DEEA), "gradientEnd": Color(0xFF26C6DA)},
+    {"country": "Thailand", "emoji": "🇹🇭", "days": "6 days", "gradientStart": Color(0xFFA5D6A7), "gradientEnd": Color(0xFF66BB6A)},
+    {"country": "Australia", "emoji": "🇦🇺", "days": "10 days", "gradientStart": Color(0xFFFFCC80), "gradientEnd": Color(0xFFFFA726)},
+    {"country": "Italy", "emoji": "🇮🇹", "days": "8 days", "gradientStart": Color(0xFFEF9A9A), "gradientEnd": Color(0xFFEF5350)},
+    {"country": "France", "emoji": "🇫🇷", "days": "7 days", "gradientStart": Color(0xFF90CAF9), "gradientEnd": Color(0xFF42A5F5)},
+    {"country": "Turkey", "emoji": "🇹🇷", "days": "6 days", "gradientStart": Color(0xFFFFAB91), "gradientEnd": Color(0xFFFF7043)},
+    {"country": "Vietnam", "emoji": "🇻🇳", "days": "5 days", "gradientStart": Color(0xFFE6EE9C), "gradientEnd": Color(0xFFD4E157)},
+    {"country": "Spain", "emoji": "🇪🇸", "days": "7 days", "gradientStart": Color(0xFFFFCC80), "gradientEnd": Color(0xFFFF9800)},
+    {"country": "Indonesia", "emoji": "🇮🇩", "days": "8 days", "gradientStart": Color(0xFF80CBC4), "gradientEnd": Color(0xFF26A69A)},
+    {"country": "United Kingdom", "emoji": "🇬🇧", "days": "6 days", "gradientStart": Color(0xFFB39DDB), "gradientEnd": Color(0xFF7E57C2)},
+    {"country": "Morocco", "emoji": "🇲🇦", "days": "5 days", "gradientStart": Color(0xFFFFAB91), "gradientEnd": Color(0xFFE64A19)},
+    {"country": "Egypt", "emoji": "🇪🇬", "days": "6 days", "gradientStart": Color(0xFFFFE082), "gradientEnd": Color(0xFFFFCA28)},
+    {"country": "New Zealand", "emoji": "🇳🇿", "days": "9 days", "gradientStart": Color(0xFFA5D6A7), "gradientEnd": Color(0xFF43A047)},
+    {"country": "Switzerland", "emoji": "🇨🇭", "days": "5 days", "gradientStart": Color(0xFF90CAF9), "gradientEnd": Color(0xFF1E88E5)},
+    {"country": "Greece", "emoji": "🇬🇷", "days": "6 days", "gradientStart": Color(0xFF80DEEA), "gradientEnd": Color(0xFF00ACC1)},
+    {"country": "Malaysia", "emoji": "🇲🇾", "days": "5 days", "gradientStart": Color(0xFFF48FB1), "gradientEnd": Color(0xFFE91E63)},
+    {"country": "Mexico", "emoji": "🇲🇽", "days": "7 days", "gradientStart": Color(0xFFA5D6A7), "gradientEnd": Color(0xFF2E7D32)},
+    {"country": "Portugal", "emoji": "🇵🇹", "days": "6 days", "gradientStart": Color(0xFFFFCC80), "gradientEnd": Color(0xFFEF6C00)},
+    {"country": "Singapore", "emoji": "🇸🇬", "days": "4 days", "gradientStart": Color(0xFFCE93D8), "gradientEnd": Color(0xFFAB47BC)},
   ];
+
+  late List<Map<String, dynamic>> _featured;
+
+  @override
+  void initState() {
+    super.initState();
+    _shuffleDestinations();
+  }
+
+  void _shuffleDestinations() {
+    final shuffled = List<Map<String, dynamic>>.from(_allDestinations)..shuffle(Random());
+    _featured = shuffled.take(4).toList();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
+    final user = Supabase.instance.client.auth.currentUser;
 
     return Scaffold(
       extendBody: true,
@@ -91,20 +97,17 @@ class HomeScreen extends StatelessWidget {
                 MaterialPageRoute(builder: (_) => const ProfileScreen()),
               ),
               borderRadius: BorderRadius.circular(50),
-              child: StreamBuilder<DocumentSnapshot>(
+              child: StreamBuilder<List<Map<String, dynamic>>>(
                 stream: user != null
-                    ? FirebaseFirestore.instance
-                        .collection('users')
-                        .doc(user.uid)
-                        .snapshots()
+                    ? Supabase.instance.client
+                        .from('users')
+                        .stream(primaryKey: ['id'])
+                        .eq('id', user.id)
                     : null,
                 builder: (context, snapshot) {
                   String avatar = "🍡";
-                  if (snapshot.hasData &&
-                      snapshot.data != null &&
-                      snapshot.data!.exists) {
-                    final data =
-                        snapshot.data!.data() as Map<String, dynamic>;
+                  if (snapshot.hasData && snapshot.data != null && snapshot.data!.isNotEmpty) {
+                    final data = snapshot.data!.first;
                     if (data.containsKey('avatar')) avatar = data['avatar'];
                   }
                   return Container(
@@ -246,13 +249,38 @@ class HomeScreen extends StatelessWidget {
                 const SizedBox(height: 28),
 
                 // ── Section Title ─────────────────────────────────────
-                const Text(
-                  'Popular Destinations',
-                  style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF1A1A1A),
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Trending Destinations 🔥',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF1A1A1A),
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () => setState(() => _shuffleDestinations()),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFCE4EC),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFFF8BBD0)),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.refresh_rounded, size: 14, color: Color(0xFFC2185B)),
+                            SizedBox(width: 4),
+                            Text('Shuffle',
+                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFFC2185B))),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ).animate().fade(duration: 400.ms, delay: 100.ms),
 
                 const SizedBox(height: 14),
@@ -261,7 +289,7 @@ class HomeScreen extends StatelessWidget {
                 GridView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
-                  itemCount: suggestions.length,
+                  itemCount: _featured.length,
                   gridDelegate:
                       const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 2,
@@ -270,7 +298,7 @@ class HomeScreen extends StatelessWidget {
                     childAspectRatio: 1.05,
                   ),
                   itemBuilder: (context, index) {
-                    final item = suggestions[index];
+                    final item = _featured[index];
                     return _DestinationCard(item: item)
                         .animate(delay: (index * 80).ms)
                         .fade(duration: 350.ms)
@@ -307,7 +335,7 @@ class _DestinationCardState extends State<_DestinationCard> {
       onTap: () => Navigator.pushNamed(
         context,
         '/chat',
-        arguments: widget.item["prompt"],
+        arguments: "Plan a trip to ${widget.item["country"]}",
       ),
       child: AnimatedScale(
         scale: _pressed ? 0.96 : 1.0,

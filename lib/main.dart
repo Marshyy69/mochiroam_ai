@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_fonts/google_fonts.dart';
-
-import 'firebase_options.dart';
 import 'screens/account_screen.dart';
 import 'screens/chat_screen.dart';
 import 'screens/home_screen.dart';
@@ -12,8 +10,6 @@ import 'screens/login_screen.dart';
 import 'screens/preferences_screen.dart';
 import 'screens/signup_screen.dart';
 import 'screens/explore_screen.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -28,9 +24,10 @@ Future<void> main() async {
     }
   }
 
-  // initialize Firebase
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
+  // initialize Supabase
+  await Supabase.initialize(
+    url: dotenv.env['SUPABASE_URL'] ?? '',
+    anonKey: dotenv.env['SUPABASE_ANON_KEY'] ?? '',
   );
 
   runApp(const MochiRoamApp());
@@ -63,7 +60,7 @@ class MochiRoamApp extends StatelessWidget {
           seedColor: Colors.pinkAccent,
           primary: Colors.pinkAccent,
           secondary: Colors.pink.shade200,
-          background: const Color(0xFFFFF5F7), // Match scaffold
+          surface: const Color(0xFFFFF5F7), // Match scaffold
         ),
         
         // 4. App Bar Styling (Clean White & Pink Text)
@@ -178,8 +175,8 @@ class AuthWrapper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
+    return StreamBuilder<AuthState>(
+      stream: Supabase.instance.client.auth.onAuthStateChange,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
@@ -189,7 +186,8 @@ class AuthWrapper extends StatelessWidget {
           );
         }
         
-        if (snapshot.hasData && snapshot.data != null) {
+        final session = snapshot.data?.session;
+        if (session != null) {
           return const HomeScreen();
         }
         

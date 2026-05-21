@@ -20,10 +20,8 @@ dependencies:
   # HTTP & API
   http: ^1.6.0
 
-  # Firebase
-  firebase_core: ^4.2.1
-  firebase_auth: ^6.1.2
-  cloud_firestore: ^6.1.0
+  # Supabase
+  supabase_flutter: ^2.5.4
 
   # UI & Utilities
   google_fonts: ^6.3.3
