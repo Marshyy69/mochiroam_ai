@@ -26,16 +26,22 @@ class _ExploreScreenState extends State<ExploreScreen> {
   Timer? _debounceTimer;
   bool _hasReceivedData = false; // Track if we've ever received data from the stream
 
-  late final Stream<List<Map<String, dynamic>>> _postsStream;
+  Stream<List<Map<String, dynamic>>>? _postsStream;
 
   @override
   void initState() {
     super.initState();
-    _postsStream = Supabase.instance.client
-        .from('public_posts')
-        .stream(primaryKey: ['id'])
-        .order('created_at', ascending: false);
+    _refreshPosts();
     _loadLikedPosts();
+  }
+
+  void _refreshPosts() {
+    setState(() {
+      _postsStream = Supabase.instance.client
+          .from('public_posts')
+          .stream(primaryKey: ['id'])
+          .order('created_at', ascending: false);
+    });
   }
 
   @override
@@ -55,17 +61,28 @@ class _ExploreScreenState extends State<ExploreScreen> {
     final uid = Supabase.instance.client.auth.currentUser?.id;
     if (uid == null) return;
     
-    // Clear cache if user changed
     if (_lastUid != uid) {
       _likedPostIds.clear();
       _likesCountOverrides.clear();
       _lastUid = uid;
     }
 
-    // We no longer do a heavy pre-fetch of all likes on startup.
-    // The UI will rely on the optimistic local cache (_likedPostIds) 
-    // during the active session. This prevents the app from hanging 
-    // or throwing TimeoutExceptions on slow/flaky connections.
+    try {
+      final res = await Supabase.instance.client
+          .from('likes')
+          .select('post_id')
+          .eq('user_id', uid)
+          .timeout(const Duration(seconds: 5));
+      
+      final ids = (res as List).map((row) => row['post_id'] as String).toSet();
+      if (mounted) {
+        setState(() {
+          _likedPostIds.addAll(ids);
+        });
+      }
+    } catch (_) {
+      // Quietly ignore timeout or connection errors
+    }
   }
 
   Future<void> _toggleLike(String postId, int currentDisplayedCount) async {
@@ -177,10 +194,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
       backgroundColor: const Color(0xFFFFF5F7),
       appBar: AppBar(
         title: const Text("Explore 🌍",
-            style: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF1A1A1A))),
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF1A1A1A))),
         backgroundColor: Colors.white, elevation: 0, centerTitle: true,
       ),
-      bottomNavigationBar: const BottomNavBar(currentIndex: 1),
+      bottomNavigationBar: const BottomNavBar(currentIndex: 2),
       body: StreamBuilder<List<Map<String, dynamic>>>(
         stream: _postsStream,
         builder: (context, snapshot) {
@@ -200,7 +217,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 children: [
                   Text("🌍", style: TextStyle(fontSize: 48)),
                   SizedBox(height: 12),
-                  Text("No posts yet!", style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+                  Text("No posts yet!", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
                   SizedBox(height: 6),
                   Text("Be the first to publish a trip.",
                       style: TextStyle(fontSize: 13, color: Color(0xFF9E9E9E))),
@@ -264,7 +281,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                 borderRadius: BorderRadius.circular(20),
                                 border: Border.all(color: sel ? const Color(0xFFF06292) : const Color(0xFFF5E0E8)),
                               ),
-                              child: Text(opt, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700,
+                              child: Text(opt, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
                                   color: sel ? Colors.white : const Color(0xFF757575))),
                             ),
                           ),
@@ -278,33 +295,52 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
               // Post feed
               Expanded(
-                child: sorted.isEmpty
-                    ? Center(child: Text("No results for \"$_searchQuery\"",
-                        style: const TextStyle(fontSize: 14, color: Color(0xFF9E9E9E))))
-                    : ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 110),
-                        itemCount: sorted.length,
-                        itemBuilder: (context, index) {
-                          final doc = sorted[index];
-                          final postData = doc;
-                          final tripData = postData['itinerary_data'] as Map<String, dynamic>? ?? {};
-                          final docId = doc['id'] as String;
-                          final publicTrip = ItineraryModel.fromMap(tripData, docId);
-                          final images = List<String>.from(postData['images'] ?? []);
-                          final liked = _likedPostIds.contains(docId);
-                          final firestoreLikes = (postData['likes_count'] ?? 0) as int;
-                          final effectiveLikes = _effectiveLikes(docId, firestoreLikes);
-                          final displayLikes = effectiveLikes < 0 ? 0 : effectiveLikes;
+                child: RefreshIndicator(
+                  color: const Color(0xFFF06292),
+                  onRefresh: () async {
+                    _refreshPosts();
+                    _loadLikedPosts();
+                    await Future.delayed(const Duration(milliseconds: 500));
+                  },
+                  child: sorted.isEmpty
+                      ? ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: [
+                            SizedBox(
+                              height: MediaQuery.of(context).size.height * 0.4,
+                              child: Center(
+                                child: Text("No results for \"$_searchQuery\"",
+                                    style: const TextStyle(fontSize: 14, color: Color(0xFF9E9E9E))),
+                              ),
+                            ),
+                          ],
+                        )
+                      : ListView.builder(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 110),
+                          itemCount: sorted.length,
+                          itemBuilder: (context, index) {
+                            final doc = sorted[index];
+                            final postData = doc;
+                            final tripData = postData['itinerary_data'] as Map<String, dynamic>? ?? {};
+                            final docId = doc['id'] as String;
+                            final publicTrip = ItineraryModel.fromMap(tripData, docId);
+                            final images = List<String>.from(postData['images'] ?? []);
+                            final liked = _likedPostIds.contains(docId);
+                            final firestoreLikes = (postData['likes_count'] ?? 0) as int;
+                            final effectiveLikes = _effectiveLikes(docId, firestoreLikes);
+                            final displayLikes = effectiveLikes < 0 ? 0 : effectiveLikes;
 
-                          return _BlogCard(
-                            key: ValueKey(docId),
-                            postData: postData, publicTrip: publicTrip,
-                            images: images, liked: liked, likesCount: displayLikes,
-                            onTap: () => _showPostModal(context, docId, postData, publicTrip, images),
-                            onLike: () => _toggleLike(docId, displayLikes),
-                          ).animate(key: ValueKey('anim_$docId')).fade(duration: 400.ms).slideY(begin: 0.06, delay: (index * 50).ms);
-                        },
-                      ),
+                            return _BlogCard(
+                              key: ValueKey(docId),
+                              postData: postData, publicTrip: publicTrip,
+                              images: images, liked: liked, likesCount: displayLikes,
+                              onTap: () => _showPostModal(context, docId, postData, publicTrip, images),
+                              onLike: () => _toggleLike(docId, displayLikes),
+                            ).animate(key: ValueKey('anim_$docId')).fade(duration: 400.ms).slideY(begin: 0.06, delay: (index * 50).ms);
+                          },
+                        ),
+                ),
               ),
             ],
           );
@@ -331,89 +367,100 @@ class _ExploreScreenState extends State<ExploreScreen> {
               Container(margin: const EdgeInsets.symmetric(vertical: 12), height: 4, width: 36,
                   decoration: BoxDecoration(color: const Color(0xFFE0E0E0), borderRadius: BorderRadius.circular(10))),
 
-              // Image gallery
-              _ImageCarousel(
-                images: images.isNotEmpty ? images : [trip.coverImage],
-                height: 240,
+              Expanded(
+                child: ListView(
+                  padding: EdgeInsets.zero,
+                  children: [
+                    _ImageCarousel(
+                      images: images.isNotEmpty ? images : [trip.coverImage],
+                      height: 240,
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Author row
+                          Row(children: [
+                            Container(width: 36, height: 36,
+                                decoration: const BoxDecoration(color: Color(0xFFFCE4EC), shape: BoxShape.circle),
+                                child: Center(child: Text(postData['author_avatar'] ?? "🍡", style: const TextStyle(fontSize: 18)))),
+                            const SizedBox(width: 10),
+                            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Text(postData['author_name'] ?? "Traveler", style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                              Text("${postData['country'] ?? ''} • ${trip.duration}", style: const TextStyle(fontSize: 11, color: Color(0xFF9E9E9E))),
+                            ])),
+                            // Like button
+                            Builder(builder: (_) {
+                              final modalLikes = _effectiveLikes(docId, (postData['likes_count'] ?? 0) as int);
+                              final displayCount = modalLikes < 0 ? 0 : modalLikes;
+                              return GestureDetector(
+                                onTap: () { _toggleLike(docId, displayCount); setModalState(() {}); },
+                                child: Row(children: [
+                                  Icon(liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                                      color: liked ? const Color(0xFFF06292) : const Color(0xFFBDBDBD), size: 22),
+                                  const SizedBox(width: 4),
+                                  Text("$displayCount",
+                                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF757575))),
+                                ]),
+                              );
+                            }),
+                            const SizedBox(width: 12),
+                            // Rating
+                            Row(children: [
+                              const Icon(Icons.star_rounded, color: Color(0xFFFFC107), size: 16),
+                              const SizedBox(width: 3),
+                              Text(postData['rating'].toString(), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                            ]),
+                          ]),
+                          const SizedBox(height: 14),
+                          Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+                          const SizedBox(height: 10),
+                          Text(postData['description'] ?? "No review provided.",
+                              style: const TextStyle(fontSize: 14, color: Color(0xFF616161), height: 1.55)),
+                          const SizedBox(height: 20),
+
+                          // Highlights
+                          if (postData['highlights'] != null && (postData['highlights'] as List).isNotEmpty) ...[
+                            const Text("Highlights 📌", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                            const SizedBox(height: 10),
+                            ...List.from(postData['highlights']).map((tag) => Container(
+                              margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(color: const Color(0xFFFCE4EC), borderRadius: BorderRadius.circular(14)),
+                              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                const Text("📌", style: TextStyle(fontSize: 14)), const SizedBox(width: 8),
+                                Expanded(child: RichText(text: TextSpan(style: const TextStyle(color: Color(0xFF1A1A1A), fontSize: 13), children: [
+                                  TextSpan(text: "${tag['header']}: ", style: const TextStyle(fontWeight: FontWeight.w700)),
+                                  TextSpan(text: tag['link'], style: const TextStyle(color: Color(0xFF1565C0))),
+                                ]))),
+                              ]),
+                            )),
+                            const SizedBox(height: 10),
+                          ],
+
+                          // Itinerary Preview
+                          if (trip.days.isNotEmpty) ...[
+                            const Text("Itinerary Preview 📋", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                            const SizedBox(height: 10),
+                            _ItineraryPreview(trip: trip),
+                            const SizedBox(height: 16),
+                          ],
+
+                          // Save button
+                          SizedBox(width: double.infinity, height: 52, child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF06292),
+                                foregroundColor: Colors.white, elevation: 0,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+                            icon: const Icon(Icons.bookmark_add_outlined, size: 20),
+                            label: const Text("Save to My Trips", style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                            onPressed: () { Navigator.pop(ctx); _copyTrip(context, trip); },
+                          )),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
-
-              Expanded(child: ListView(padding: const EdgeInsets.all(20), children: [
-                // Author row
-                Row(children: [
-                  Container(width: 36, height: 36,
-                      decoration: const BoxDecoration(color: Color(0xFFFCE4EC), shape: BoxShape.circle),
-                      child: Center(child: Text(postData['author_avatar'] ?? "🍡", style: const TextStyle(fontSize: 18)))),
-                  const SizedBox(width: 10),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(postData['author_name'] ?? "Traveler", style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
-                    Text("${postData['country'] ?? ''} • ${trip.duration}", style: const TextStyle(fontSize: 11, color: Color(0xFF9E9E9E))),
-                  ])),
-                  // Like button
-                  Builder(builder: (_) {
-                    final modalLikes = _effectiveLikes(docId, (postData['likes_count'] ?? 0) as int);
-                    final displayCount = modalLikes < 0 ? 0 : modalLikes;
-                    return GestureDetector(
-                      onTap: () { _toggleLike(docId, displayCount); setModalState(() {}); },
-                      child: Row(children: [
-                        Icon(liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                            color: liked ? const Color(0xFFF06292) : const Color(0xFFBDBDBD), size: 22),
-                        const SizedBox(width: 4),
-                        Text("$displayCount",
-                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF757575))),
-                      ]),
-                    );
-                  }),
-                  const SizedBox(width: 12),
-                  // Rating
-                  Row(children: [
-                    const Icon(Icons.star_rounded, color: Color(0xFFFFC107), size: 16),
-                    const SizedBox(width: 3),
-                    Text(postData['rating'].toString(), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                  ]),
-                ]),
-                const SizedBox(height: 14),
-                Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 10),
-                Text(postData['description'] ?? "No review provided.",
-                    style: const TextStyle(fontSize: 14, color: Color(0xFF616161), height: 1.55)),
-                const SizedBox(height: 20),
-
-                // Highlights
-                if (postData['highlights'] != null && (postData['highlights'] as List).isNotEmpty) ...[
-                  const Text("Highlights 📌", style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 10),
-                  ...List.from(postData['highlights']).map((tag) => Container(
-                    margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(color: const Color(0xFFFCE4EC), borderRadius: BorderRadius.circular(14)),
-                    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      const Text("📌", style: TextStyle(fontSize: 14)), const SizedBox(width: 8),
-                      Expanded(child: RichText(text: TextSpan(style: const TextStyle(color: Color(0xFF1A1A1A), fontSize: 13), children: [
-                        TextSpan(text: "${tag['header']}: ", style: const TextStyle(fontWeight: FontWeight.w700)),
-                        TextSpan(text: tag['link'], style: const TextStyle(color: Color(0xFF1565C0))),
-                      ]))),
-                    ]),
-                  )),
-                  const SizedBox(height: 10),
-                ],
-
-                // Itinerary Preview
-                if (trip.days.isNotEmpty) ...[
-                  const Text("Itinerary Preview 📋", style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 10),
-                  _ItineraryPreview(trip: trip),
-                  const SizedBox(height: 16),
-                ],
-
-                // Save button
-                SizedBox(width: double.infinity, height: 52, child: ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF06292),
-                      foregroundColor: Colors.white, elevation: 0,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
-                  icon: const Icon(Icons.bookmark_add_outlined, size: 20),
-                  label: const Text("Save to My Trips", style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-                  onPressed: () { Navigator.pop(ctx); _copyTrip(context, trip); },
-                )),
-              ])),
             ]),
           );
         });
@@ -628,7 +675,7 @@ class _BlogCardState extends State<_BlogCard> {
                   maxLines: 2, overflow: TextOverflow.ellipsis),
               if (desc.isNotEmpty) ...[
                 const SizedBox(height: 4),
-                Text(desc, style: const TextStyle(fontSize: 12, color: Color(0xFF9E9E9E), height: 1.4),
+                Text(desc, style: const TextStyle(fontSize: 13, color: Color(0xFF757575), height: 1.4),
                     maxLines: 2, overflow: TextOverflow.ellipsis),
               ],
               const SizedBox(height: 10),

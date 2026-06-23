@@ -119,7 +119,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         title: const Text(
           "Edit Profile",
           style: TextStyle(
-              fontWeight: FontWeight.w800, color: Color(0xFF1A1A1A)),
+              fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF1A1A1A)),
         ),
         backgroundColor: Colors.white,
         elevation: 0,
@@ -176,7 +176,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const Text(
                     "Choose your avatar",
                     style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 11,
                         color: Color(0xFF9E9E9E),
                         fontWeight: FontWeight.w500),
                   ),
@@ -240,8 +240,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         const Text(
                           "Display Name",
                           style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
                               color: Color(0xFF616161),
                               letterSpacing: 0.3),
                         ),
@@ -317,7 +317,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         foregroundColor: Colors.white,
                         elevation: 0,
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(18)),
+                            borderRadius: BorderRadius.circular(16)),
                         shadowColor:
                             const Color(0xFFF06292).withValues(alpha: 0.3),
                       ),
@@ -381,9 +381,9 @@ class _StatCard extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 11,
                   color: textColor.withValues(alpha: 0.8),
-                  fontWeight: FontWeight.w500),
+                  fontWeight: FontWeight.w600),
             ),
           ],
         ),

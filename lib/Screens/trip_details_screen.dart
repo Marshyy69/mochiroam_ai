@@ -243,13 +243,20 @@ class _TripDetailsScreenState extends State<TripDetailsScreen>
 
             for (int i = 0; i < day.activities.length; i++) {
               final act = day.activities[i];
-              final t = act.time.toLowerCase();
-              final title = act.title.toLowerCase();
-              bool isFood = t.contains("lunch") ||
-                  t.contains("dinner") ||
-                  title.contains("lunch at") ||
-                  title.contains("dinner at") ||
-                  title.contains("eat at");
+              // Use category field if available, otherwise fallback to heuristic
+              bool isFood = false;
+              if (act.category != null) {
+                final cat = act.category!.toLowerCase();
+                isFood = cat.contains("food") || cat.contains("cafe");
+              } else {
+                final t = act.time.toLowerCase();
+                final title = act.title.toLowerCase();
+                isFood = t.contains("lunch") ||
+                    t.contains("dinner") ||
+                    title.contains("lunch at") ||
+                    title.contains("dinner at") ||
+                    title.contains("eat at");
+              }
               if (isFood) {
                 foodPlaces.add({'act': act, 'index': i});
               } else {
@@ -353,6 +360,18 @@ class _ActivityCard extends StatelessWidget {
   });
 
   Color get _bgColor {
+    // Use category-based coloring if available
+    if (act.category != null) {
+      final cat = act.category!.toLowerCase();
+      if (cat.contains("food") || cat.contains("cafe")) return const Color(0xFFFFF3E0);
+      if (cat.contains("culture") || cat.contains("history")) return const Color(0xFFE8EAF6);
+      if (cat.contains("nature")) return const Color(0xFFE8F5E9);
+      if (cat.contains("adventure")) return const Color(0xFFFCE4EC);
+      if (cat.contains("shopping")) return const Color(0xFFF3E5F5);
+      if (cat.contains("photo")) return const Color(0xFFFFF8E1);
+      if (cat.contains("nightlife")) return const Color(0xFFEDE7F6);
+    }
+    // Fallback to original logic
     if (isFood) return const Color(0xFFFFF3E0);
     final t = act.time.toLowerCase();
     if (t.contains("am") || t.contains("morning"))
@@ -382,14 +401,18 @@ class _ActivityCard extends StatelessWidget {
         ),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Checkbox
-          Checkbox(
-            value: act.isDone,
-            activeColor: const Color(0xFFF06292),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-            onChanged: (val) => onToggle(dayIndex, actIndex, val),
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Checkbox(
+              value: act.isDone,
+              activeColor: const Color(0xFFF06292),
+              shape:
+                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+              onChanged: (val) => onToggle(dayIndex, actIndex, val),
+            ),
           ),
 
           // Content
@@ -399,24 +422,69 @@ class _ActivityCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Time badge
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 7, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      act.time,
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        color: _timeColor,
+                  // Top row: Time badge + Category + Cost
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      // Time badge
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          act.time,
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: _timeColor,
+                          ),
+                        ),
                       ),
-                    ),
+                      // Category badge
+                      if (act.category != null && act.category!.isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.8),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            act.category!,
+                            style: const TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF616161),
+                            ),
+                          ),
+                        ),
+                      // Cost badge
+                      if (act.cost != null && act.cost!.isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE8F5E9),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            act.cost!,
+                            style: const TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF2E7D32),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                   const SizedBox(height: 4),
+                  // Title
                   Text(
                     act.title,
                     style: TextStyle(
@@ -430,15 +498,75 @@ class _ActivityCard extends StatelessWidget {
                           : null,
                     ),
                   ),
+                  // Description
                   if (act.desc.isNotEmpty)
-                    Text(
-                      act.desc,
-                      style: const TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF757575),
-                          height: 1.4),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        act.desc,
+                        style: const TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF757575),
+                            height: 1.4),
+                        maxLines: 4,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  // Transport info
+                  if (act.transport != null && act.transport!.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.directions_walk_rounded,
+                              size: 12, color: Color(0xFF1565C0)),
+                          const SizedBox(width: 3),
+                          Expanded(
+                            child: Text(
+                              act.transport!,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Color(0xFF1565C0),
+                                fontWeight: FontWeight.w500,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  // Pro tip
+                  if (act.tip != null && act.tip!.isNotEmpty)
+                    Container(
+                      margin: const EdgeInsets.only(top: 6),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF8E1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                            color: const Color(0xFFFFE082), width: 0.5),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text("💡 ", style: TextStyle(fontSize: 11)),
+                          Expanded(
+                            child: Text(
+                              act.tip!,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Color(0xFF795548),
+                                fontStyle: FontStyle.italic,
+                                height: 1.3,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                 ],
               ),

@@ -10,8 +10,8 @@ class BottomNavBar extends StatelessWidget {
     if (index == currentIndex) return;
     switch (index) {
       case 0: Navigator.pushReplacementNamed(context, "/home"); break;
-      case 1: Navigator.pushReplacementNamed(context, "/explore"); break;
-      case 2: Navigator.pushReplacementNamed(context, "/itinerary"); break;
+      case 1: Navigator.pushReplacementNamed(context, "/itinerary"); break;
+      case 2: Navigator.pushReplacementNamed(context, "/explore"); break;
       case 3: Navigator.pushReplacementNamed(context, "/account"); break;
     }
   }
@@ -23,8 +23,8 @@ class BottomNavBar extends StatelessWidget {
 
     final items = [
       _NavItem(assetPath: 'assets/images/mascot.png', label: 'Home'),
-      _NavItem(icon: Icons.explore_outlined, label: 'Explore'),
       _NavItem(assetPath: 'assets/icons/itinerary.png', label: 'Trips'),
+      _NavItem(icon: Icons.explore_outlined, label: 'Explore'),
       _NavItem(assetPath: 'assets/icons/acc.png', label: 'Account'),
     ];
 

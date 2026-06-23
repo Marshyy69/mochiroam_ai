@@ -255,7 +255,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     const Text(
                       'Trending Destinations 🔥',
                       style: TextStyle(
-                        fontSize: 17,
+                        fontSize: 16,
                         fontWeight: FontWeight.w800,
                         color: Color(0xFF1A1A1A),
                       ),
@@ -275,7 +275,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             Icon(Icons.refresh_rounded, size: 14, color: Color(0xFFC2185B)),
                             SizedBox(width: 4),
                             Text('Shuffle',
-                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFFC2185B))),
+                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFFC2185B))),
                           ],
                         ),
                       ),
@@ -421,7 +421,7 @@ class _DestinationCardState extends State<_DestinationCard> {
                     Text(
                       widget.item["days"] as String,
                       style: const TextStyle(
-                        fontSize: 10,
+                        fontSize: 11,
                         color: Color(0xFF9E9E9E),
                         fontWeight: FontWeight.w500,
                       ),

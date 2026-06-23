@@ -100,7 +100,7 @@ class _AccountScreenState extends State<AccountScreen> {
         title: const Text(
           "My Account",
           style: TextStyle(
-              fontWeight: FontWeight.w800, color: Color(0xFF1A1A1A)),
+              fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF1A1A1A)),
         ),
         backgroundColor: Colors.white,
         elevation: 0,
@@ -122,8 +122,8 @@ class _AccountScreenState extends State<AccountScreen> {
                 child: const Text(
                   "Edit ✏️",
                   style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
                       color: Color(0xFFC2185B)),
                 ),
               ),
@@ -303,7 +303,7 @@ class _AccountScreenState extends State<AccountScreen> {
                   Text(
                     "MochiRoam AI  •  $_appVersion",
                     style: const TextStyle(
-                        color: Color(0xFFBDBDBD), fontSize: 12),
+                        color: Color(0xFF9E9E9E), fontSize: 11),
                   ),
                 ],
               ),
@@ -342,7 +342,7 @@ class _StatPill extends StatelessWidget {
               style: const TextStyle(
                   fontSize: 11,
                   color: Color(0xFFC2185B),
-                  fontWeight: FontWeight.w500),
+                  fontWeight: FontWeight.w600),
             ),
           ],
         ),

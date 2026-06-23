@@ -292,7 +292,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   const Text(
                     'Mochi 🍡',
                     style: TextStyle(
-                      fontSize: 10,
+                      fontSize: 11,
                       fontWeight: FontWeight.w700,
                       color: Color(0xFFF06292),
                     ),
@@ -302,7 +302,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     data: message.text,
                     styleSheet: MarkdownStyleSheet(
                       p: const TextStyle(
-                          color: Color(0xFF1A1A1A), fontSize: 15),
+                          color: Color(0xFF1A1A1A), fontSize: 14),
                     ),
                   ),
                 ],
@@ -312,7 +312,7 @@ class _ChatScreenState extends State<ChatScreen> {
             return MarkdownBody(
               data: message.text,
               styleSheet: MarkdownStyleSheet(
-                p: const TextStyle(color: Colors.white, fontSize: 15),
+                p: const TextStyle(color: Colors.white, fontSize: 14),
               ),
             );
           },
@@ -438,8 +438,8 @@ class _TripCard extends StatelessWidget {
                       trip.duration.toUpperCase(),
                       style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 9,
-                          fontWeight: FontWeight.w700),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600),
                     ),
                   ),
                 ),
@@ -479,7 +479,7 @@ class _TripCard extends StatelessWidget {
                             child: Text(
                               tag,
                               style: const TextStyle(
-                                  fontSize: 10,
+                                  fontSize: 11,
                                   color: Color(0xFFC2185B),
                                   fontWeight: FontWeight.w600),
                             ),

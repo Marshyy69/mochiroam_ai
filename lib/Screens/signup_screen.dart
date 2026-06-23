@@ -106,7 +106,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 const Text(
                   "MochiRoam AI",
                   style: TextStyle(
-                      fontSize: 24,
+                      fontSize: 26,
                       fontWeight: FontWeight.w800,
                       color: Colors.white),
                 ),
@@ -271,8 +271,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
   Widget _buildLabel(String text) => Text(
         text,
         style: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
             color: Color(0xFF616161),
             letterSpacing: 0.3),
       );

@@ -222,7 +222,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         title: const Text(
           "Create Memory",
           style: TextStyle(
-              fontWeight: FontWeight.w800, color: Color(0xFF1A1A1A)),
+              fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF1A1A1A)),
         ),
         backgroundColor: Colors.white,
         elevation: 0,
@@ -286,12 +286,12 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                       controller: _reviewController,
                       maxLines: 4,
                       style: const TextStyle(
-                          fontSize: 13, color: Color(0xFF1A1A1A)),
+                          fontSize: 14, color: Color(0xFF1A1A1A)),
                       decoration: InputDecoration(
                         hintText:
                             "What were the highlights? Any hidden gems?",
                         hintStyle: const TextStyle(
-                            color: Color(0xFFBDBDBD), fontSize: 13),
+                            color: Color(0xFFBDBDBD), fontSize: 14),
                         filled: true,
                         fillColor: const Color(0xFFFAFAFA),
                         contentPadding: const EdgeInsets.all(14),
@@ -331,8 +331,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                         child: const Text(
                           "+ Add",
                           style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
                               color: Color(0xFFC2185B)),
                         ),
                       ),
@@ -341,8 +341,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                         ? const Text(
                             "Tap + Add to tag hotels, restaurants, or links",
                             style: TextStyle(
-                                fontSize: 12,
-                                color: Color(0xFFBDBDBD)),
+                                fontSize: 13,
+                                color: Color(0xFF757575)),
                           )
                         : Wrap(
                             spacing: 8,
@@ -521,7 +521,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                         foregroundColor: Colors.white,
                         elevation: 0,
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(18)),
+                            borderRadius: BorderRadius.circular(16)),
                       ),
                       onPressed: _publishPost,
                       child: const Text(
@@ -544,11 +544,11 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   }) {
     return TextField(
       controller: controller,
-      style: const TextStyle(fontSize: 13, color: Color(0xFF1A1A1A)),
+      style: const TextStyle(fontSize: 14, color: Color(0xFF1A1A1A)),
       decoration: InputDecoration(
         hintText: hint,
         hintStyle:
-            const TextStyle(color: Color(0xFFBDBDBD), fontSize: 13),
+            const TextStyle(color: Color(0xFFBDBDBD), fontSize: 14),
         filled: true,
         fillColor: const Color(0xFFFAFAFA),
         contentPadding:
@@ -606,7 +606,7 @@ class _SectionCard extends StatelessWidget {
               Text(
                 title,
                 style: const TextStyle(
-                    fontSize: 14,
+                    fontSize: 16,
                     fontWeight: FontWeight.w800,
                     color: Color(0xFF1A1A1A)),
               ),

@@ -121,12 +121,20 @@ class Activity {
   String time;
   String title;
   String desc;
+  String? category;   // e.g. "🍜 Food", "🏛️ Culture", "🌿 Nature", "🎢 Adventure"
+  String? tip;        // Pro traveler tip
+  String? cost;       // Estimated cost e.g. "Free", "~$15", "$$"
+  String? transport;  // How to get there from previous stop
   bool isDone;
 
   Activity({
     required this.time,
     required this.title,
     required this.desc,
+    this.category,
+    this.tip,
+    this.cost,
+    this.transport,
     this.isDone = false,
   });
 
@@ -135,6 +143,10 @@ class Activity {
       time: map['time'] ?? '',
       title: map['title'] ?? '',
       desc: map['desc'] ?? '',
+      category: map['category'],
+      tip: map['tip'],
+      cost: map['cost'],
+      transport: map['transport'],
       isDone: map['isDone'] ?? false,
     );
   }
@@ -144,6 +156,10 @@ class Activity {
       'time': time,
       'title': title,
       'desc': desc,
+      if (category != null) 'category': category,
+      if (tip != null) 'tip': tip,
+      if (cost != null) 'cost': cost,
+      if (transport != null) 'transport': transport,
       'isDone': isDone,
     };
   }

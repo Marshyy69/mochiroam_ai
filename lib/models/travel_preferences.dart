@@ -8,6 +8,7 @@ class TravelPreferences {
   final List<String> tripVibe;  // 🆕 Miss Siti: Adventure, Nature, etc.
   final String budget;          // 🆕 Miss Siti: Budget per trip
   final String accommodation;   // 🆕 Miss Siti: Homestay vs Hotel
+  final String currency;        // Currency preference: USD, MYR, SGD, IDR
 
   TravelPreferences({
     required this.pax,
@@ -19,6 +20,7 @@ class TravelPreferences {
     required this.tripVibe,
     required this.budget,
     required this.accommodation,
+    this.currency = 'USD',
   });
 
   // 1. Default Values
@@ -33,22 +35,24 @@ class TravelPreferences {
       tripVibe: ["Balanced"],
       budget: "Standard",
       accommodation: "Hotel",
+      currency: "USD",
     );
   }
 
-  // 2. Convert from Firestore Map
+  // 2. Convert from Supabase/Firestore Map
+  // Supports both snake_case (Supabase columns) and camelCase (legacy) keys
   factory TravelPreferences.fromMap(Map<String, dynamic> map) {
     return TravelPreferences(
       pax: map['pax'] ?? 1,
-      hasChildren: map['hasChildren'] ?? false,
-      childrenCount: map['childrenCount'] ?? 0,
-      childrenAgeRange: map['childrenAgeRange'] ?? "",
-      hasElderly: map['hasElderly'] ?? false,
+      hasChildren: map['has_children'] ?? map['hasChildren'] ?? false,
+      childrenCount: map['children_count'] ?? map['childrenCount'] ?? 0,
+      childrenAgeRange: map['children_age_range'] ?? map['childrenAgeRange'] ?? "",
+      hasElderly: map['has_elderly'] ?? map['hasElderly'] ?? false,
       isHalal: map['is_halal'] ?? false,
-      // Convert List<dynamic> to List<String> safely
-      tripVibe: List<String>.from(map['tripVibe'] ?? ["Balanced"]), 
+      tripVibe: List<String>.from(map['trip_vibe'] ?? map['tripVibe'] ?? ["Balanced"]), 
       budget: map['budget'] ?? "Standard",
       accommodation: map['accommodation'] ?? "Hotel",
+      currency: map['currency'] ?? "USD",
     );
   }
 
@@ -66,6 +70,7 @@ class TravelPreferences {
     - Trip Vibe/Interests: ${tripVibe.join(", ")}
     - Budget Level: $budget
     - Accommodation Preference: $accommodation
+    - Currency: $currency
     """;
   }
 }

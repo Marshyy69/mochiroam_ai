@@ -26,9 +26,16 @@ class _PreferencesScreenState extends State<PreferencesScreen> {
     "Hostel / Dorm 🛏️",
     "Resort 🌴"
   ];
+  final List<String> currencyOptions = [
+    "USD (🇺🇸 US Dollar)",
+    "MYR (🇲🇾 Ringgit)",
+    "SGD (🇸🇬 Singapore Dollar)",
+    "IDR (🇮🇩 Rupiah)",
+  ];
 
   late String budget;
   late String accommodation;
+  late String currency;
 
   List<String> selectedVibes = [];
   final List<String> vibeOptions = [
@@ -49,6 +56,7 @@ class _PreferencesScreenState extends State<PreferencesScreen> {
     super.initState();
     budget = budgetOptions[1];
     accommodation = accommodationOptions[0];
+    currency = currencyOptions[0];
     _loadPrefs();
   }
 
@@ -83,6 +91,9 @@ class _PreferencesScreenState extends State<PreferencesScreen> {
 
           String la = (doc['accommodation'] ?? accommodationOptions[0]) as String;
           accommodation = accommodationOptions.contains(la) ? la : accommodationOptions[0];
+
+          String lc = (doc['currency'] ?? currencyOptions[0]) as String;
+          currency = currencyOptions.contains(lc) ? lc : currencyOptions[0];
         });
       } else {
         setState(() => selectedVibes = ["Relaxing 💆‍♀️"]);
@@ -113,6 +124,7 @@ class _PreferencesScreenState extends State<PreferencesScreen> {
         'trip_vibe': selectedVibes.isEmpty ? ["Standard"] : selectedVibes,
         'budget': budget,
         'accommodation': accommodation,
+        'currency': currency,
         'updated_at': DateTime.now().toIso8601String(),
       });
 
@@ -152,7 +164,7 @@ class _PreferencesScreenState extends State<PreferencesScreen> {
         title: const Text(
           "Travel Preferences",
           style: TextStyle(
-              fontWeight: FontWeight.w800, color: Color(0xFF1A1A1A)),
+              fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF1A1A1A)),
         ),
         backgroundColor: Colors.white,
         elevation: 0,
@@ -223,7 +235,7 @@ class _PreferencesScreenState extends State<PreferencesScreen> {
                 const Text(
                   "What kind of trip? (Select multiple)",
                   style:
-                      TextStyle(fontSize: 12, color: Color(0xFF9E9E9E)),
+                      TextStyle(fontSize: 11, color: Color(0xFF9E9E9E)),
                 ),
                 const SizedBox(height: 12),
                 Wrap(
@@ -255,7 +267,7 @@ class _PreferencesScreenState extends State<PreferencesScreen> {
                         child: Text(
                           vibe,
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: 11,
                             fontWeight: FontWeight.w600,
                             color: isSelected
                                 ? const Color(0xFFC2185B)
@@ -288,6 +300,13 @@ class _PreferencesScreenState extends State<PreferencesScreen> {
                   items: accommodationOptions,
                   onChanged: (v) => setState(() => accommodation = v!),
                 ),
+                const SizedBox(height: 14),
+                _buildDropdown(
+                  label: "Currency for Cost Estimates",
+                  value: currency,
+                  items: currencyOptions,
+                  onChanged: (v) => setState(() => currency = v!),
+                ),
               ],
             ),
 
@@ -304,7 +323,7 @@ class _PreferencesScreenState extends State<PreferencesScreen> {
                   foregroundColor: Colors.white,
                   elevation: 0,
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18)),
+                      borderRadius: BorderRadius.circular(16)),
                 ),
                 child: const Text(
                   "Save Preferences",
@@ -425,7 +444,7 @@ class _SectionCard extends StatelessWidget {
           Text(
             title,
             style: const TextStyle(
-                fontSize: 15,
+                fontSize: 16,
                 fontWeight: FontWeight.w800,
                 color: Color(0xFF1A1A1A)),
           ),
